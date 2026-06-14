@@ -58,7 +58,7 @@ app.use(express.urlencoded({ extended: true }));
 // In production, move selfies to a private bucket instead.
 // ------------------------------------------------------------------
 const uploadsDir = path.join(process.cwd(), 'uploads');
-['photos', 'selfies'].forEach(dir => {
+['photos', 'selfies', 'stories', 'groups'].forEach(dir => {
   fs.mkdirSync(path.join(uploadsDir, dir), { recursive: true });
 });
 app.use('/uploads', express.static(uploadsDir));

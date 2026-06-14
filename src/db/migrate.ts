@@ -243,3 +243,54 @@ async function migrate() {
 }
 
 migrate();
+
+// ---- Stories ----
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS stories (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        photo_url TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS story_views (
+        story_id UUID NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+        viewer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        viewed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (story_id, viewer_id)
+      )
+    `);
+    // ---- Community Groups ----
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS community_groups (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        photo_url TEXT,
+        created_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        last_message_at TIMESTAMPTZ,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS community_group_members (
+        group_id UUID NOT NULL REFERENCES community_groups(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (group_id, user_id)
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS community_group_messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        group_id UUID NOT NULL REFERENCES community_groups(id) ON DELETE CASCADE,
+        sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        text TEXT NOT NULL,
+        sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_stories_user ON stories(user_id, created_at DESC)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_groups_last_msg ON community_groups(last_message_at DESC)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_group_msgs ON community_group_messages(group_id, sent_at)`);

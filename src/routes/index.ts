@@ -1,5 +1,8 @@
 import { Router } from 'express';
 import multer from 'multer';
+import path from 'path';
+import { v4 as uuid } from 'uuid';
+import fs from 'fs';
 import { authMiddleware, adminMiddleware, adminOnlyMiddleware } from '../middleware/auth';
 import { getMe, updateMe, getProfile, reportUser, blockUser, getBlockedUsers, unblockUser } from '../controllers/profile';
 import { uploadPhoto, servePhoto, deletePhoto } from '../controllers/photos';
@@ -9,18 +12,38 @@ import { getConversations, getMessages, sendMessage, startConversation, sendPhot
 import { getLocations, createLocation, upvoteLocation, reportLocation } from '../controllers/map';
 import {
   getEvents, createEvent, joinEvent, leaveEvent, deleteEvent, updateEvent,
-  getEventAttendees, getGroupMessages, sendGroupMessage, reportEvent,
+  getEventAttendees, getGroupMessages as getEventGroupMessages,
+  sendGroupMessage as sendEventGroupMessage, reportEvent,
 } from '../controllers/events';
-import {
-  requestVerification, getVerificationQueue,
-  approveVerification, rejectVerification,
-} from '../controllers/verification';
+import { requestVerification, getVerificationQueue, approveVerification, rejectVerification } from '../controllers/verification';
 import {
   getStats, getUsers, banUser, suspendUser, unsuspendUser,
   removeUser, getReports, dismissReport, getAuditLog, sendAnnouncement,
   revokePremium, grantPremium, removeVerification, grantVerification,
   getModerators, promoteModerator, demoteModerator,
 } from '../controllers/admin';
+import {
+  getGroups, createGroup, joinGroup, leaveGroup, deleteGroup,
+  getGroupMessages, sendGroupMessage, getGroupMembers,
+} from '../controllers/groups';
+import { getStories, createStory, markStoryViewed } from '../controllers/stories';
+
+// ── Upload directories ────────────────────────────────────────────
+function makeUpload(subdir: string) {
+  const dir = path.join(process.cwd(), 'uploads', subdir);
+  fs.mkdirSync(dir, { recursive: true });
+  return multer({
+    storage: multer.diskStorage({
+      destination: dir,
+      filename: (_, file, cb) => cb(null, `${uuid()}${path.extname(file.originalname)}`),
+    }),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (_, file, cb) => {
+      if (file.mimetype.startsWith('image/')) cb(null, true);
+      else cb(new Error('Images only'));
+    },
+  });
+}
 
 const memoryUpload = multer({
   storage: multer.memoryStorage(),
@@ -30,33 +53,19 @@ const memoryUpload = multer({
     else cb(new Error('Images only'));
   },
 });
-
-import path from 'path';
-import { v4 as uuid } from 'uuid';
-import fs from 'fs';
-const selfieDir = path.join(process.cwd(), 'uploads/selfies');
-fs.mkdirSync(selfieDir, { recursive: true });
-const selfieUpload = multer({
-  storage: multer.diskStorage({
-    destination: selfieDir,
-    filename: (_, file, cb) => cb(null, `${uuid()}${path.extname(file.originalname)}`),
-  }),
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (_, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Images only'));
-  },
-});
+const selfieUpload = makeUpload('selfies');
+const groupPhotoUpload = makeUpload('groups');
+const storyUpload = makeUpload('stories');
 
 const router = Router();
 
-// Photo serving — public
+// Photo serving — public (UUID filenames are unguessable)
 router.get('/photos/:photoId', servePhoto);
 
 // All remaining routes require auth
 router.use(authMiddleware);
 
-// Profile
+// ── Profile ───────────────────────────────────────────────────────
 router.get('/profile/me', getMe);
 router.patch('/profile/me', updateMe);
 router.get('/profiles/:id', getProfile);
@@ -64,32 +73,30 @@ router.get('/users/blocked', getBlockedUsers);
 router.post('/users/:id/report', reportUser);
 router.post('/users/:id/block', blockUser);
 router.delete('/users/:id/block', unblockUser);
-
-// Photo upload
 router.post('/profile/photos', memoryUpload.single('photo'), uploadPhoto as any);
 router.delete('/profile/photos/:photoId', deletePhoto as any);
 
-// Premium
+// ── Premium ───────────────────────────────────────────────────────
 router.post('/premium/create-invoice', createInvoice);
 
-// Discovery
+// ── Discovery ─────────────────────────────────────────────────────
 router.get('/discovery/nearby', getNearby);
 router.get('/discovery/explore/:section', getExplore);
 
-// Messages
+// ── Messages ──────────────────────────────────────────────────────
 router.get('/messages/conversations', getConversations);
 router.get('/messages/conversations/:conversationId', getMessages);
 router.post('/messages/conversations/:conversationId', sendMessage);
 router.post('/messages/conversations/:conversationId/photo', memoryUpload.single('photo'), sendPhotoMessage as any);
 router.post('/messages/start', startConversation);
 
-// Map locations
+// ── Map locations ─────────────────────────────────────────────────
 router.get('/map/locations', getLocations);
 router.post('/map/locations', createLocation);
 router.post('/map/locations/:locationId/upvote', upvoteLocation);
 router.post('/map/locations/:locationId/report', reportLocation);
 
-// Map events
+// ── Map events ────────────────────────────────────────────────────
 router.get('/events', getEvents);
 router.post('/events', createEvent);
 router.post('/events/:eventId/join', joinEvent);
@@ -98,15 +105,28 @@ router.delete('/events/:eventId', deleteEvent);
 router.patch('/events/:eventId', updateEvent);
 router.get('/events/:eventId/attendees', getEventAttendees);
 router.post('/events/:eventId/report', reportEvent);
+router.get('/group-chat/:conversationId/messages', getEventGroupMessages);
+router.post('/group-chat/:conversationId/messages', sendEventGroupMessage);
 
-// Group chat (event chats)
-router.get('/group-chat/:conversationId/messages', getGroupMessages);
-router.post('/group-chat/:conversationId/messages', sendGroupMessage);
+// ── Community Groups ──────────────────────────────────────────────
+router.get('/groups', getGroups);
+router.post('/groups', groupPhotoUpload.single('photo'), createGroup);
+router.post('/groups/:groupId/join', joinGroup);
+router.post('/groups/:groupId/leave', leaveGroup);
+router.delete('/groups/:groupId', deleteGroup);
+router.get('/groups/:groupId/messages', getGroupMessages);
+router.post('/groups/:groupId/messages', sendGroupMessage);
+router.get('/groups/:groupId/members', getGroupMembers);
 
-// Verification
+// ── Stories ───────────────────────────────────────────────────────
+router.get('/stories', getStories);
+router.post('/stories', storyUpload.single('photo'), createStory);
+router.post('/stories/:storyId/view', markStoryViewed);
+
+// ── Verification ──────────────────────────────────────────────────
 router.post('/verification/request', selfieUpload.single('selfie'), requestVerification);
 
-// Admin routes
+// ── Admin routes ──────────────────────────────────────────────────
 router.get('/admin/stats', adminMiddleware, getStats);
 router.get('/admin/users', adminOnlyMiddleware, getUsers);
 router.post('/admin/users/:userId/ban', adminMiddleware, banUser);
