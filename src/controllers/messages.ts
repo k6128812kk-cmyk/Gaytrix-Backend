@@ -12,19 +12,19 @@ export async function getConversations(req: AuthenticatedRequest, res: Response)
       `SELECT
         c.id,
         c.is_request,
-        -- Get the other participant
         CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END as participant_id,
-        -- Last message
-        (SELECT row_to_json(m) FROM (
-          SELECT id, content_type as type, text, sent_at, read_at
-          FROM messages WHERE conversation_id = c.id
-          ORDER BY sent_at DESC LIMIT 1
-        ) m) as last_message,
-        -- Unread count
         (SELECT COUNT(*) FROM messages
          WHERE conversation_id = c.id
            AND sender_id != $1
-           AND read_at IS NULL) as unread_count
+           AND read_at IS NULL) as unread_count,
+        -- Last message fields individually (avoids row_to_json snake_case issue)
+        (SELECT m.id FROM messages m WHERE m.conversation_id = c.id ORDER BY m.sent_at DESC LIMIT 1) as lm_id,
+        (SELECT m.content_type FROM messages m WHERE m.conversation_id = c.id ORDER BY m.sent_at DESC LIMIT 1) as lm_type,
+        (SELECT m.text FROM messages m WHERE m.conversation_id = c.id ORDER BY m.sent_at DESC LIMIT 1) as lm_text,
+        (SELECT m.media_url FROM messages m WHERE m.conversation_id = c.id ORDER BY m.sent_at DESC LIMIT 1) as lm_media_url,
+        (SELECT m.sent_at FROM messages m WHERE m.conversation_id = c.id ORDER BY m.sent_at DESC LIMIT 1) as lm_sent_at,
+        (SELECT m.read_at FROM messages m WHERE m.conversation_id = c.id ORDER BY m.sent_at DESC LIMIT 1) as lm_read_at,
+        (SELECT m.sender_id FROM messages m WHERE m.conversation_id = c.id ORDER BY m.sent_at DESC LIMIT 1) as lm_sender_id
        FROM conversations c
        WHERE c.user_a = $1 OR c.user_b = $1
        ORDER BY (
@@ -34,7 +34,6 @@ export async function getConversations(req: AuthenticatedRequest, res: Response)
       [req.user!.id]
     );
 
-    // Fetch participant details for each conversation
     const conversations = await Promise.all(
       result.rows.map(async (row) => {
         const participant = await db.query(
@@ -44,11 +43,23 @@ export async function getConversations(req: AuthenticatedRequest, res: Response)
           [row.participant_id]
         );
         const p = participant.rows[0];
+
+        const lastMessage = row.lm_id ? {
+          id: row.lm_id,
+          conversationId: row.id,
+          senderId: row.lm_sender_id,
+          type: row.lm_type,
+          text: row.lm_text ?? undefined,
+          mediaUrl: row.lm_media_url ?? undefined,
+          sentAt: row.lm_sent_at,
+          readAt: row.lm_read_at ?? null,
+        } : null;
+
         return {
           id: row.id,
           isMessageRequest: row.is_request,
           unreadCount: parseInt(row.unread_count),
-          lastMessage: row.last_message,
+          lastMessage,
           participant: p ? {
             id: p.id,
             displayName: p.display_name,
@@ -73,7 +84,6 @@ export async function getMessages(req: AuthenticatedRequest, res: Response) {
   const { conversationId } = req.params;
 
   try {
-    // Verify user is part of this conversation
     const conv = await db.query(
       `SELECT * FROM conversations WHERE id = $1 AND (user_a = $2 OR user_b = $2)`,
       [conversationId, req.user!.id]
@@ -88,7 +98,6 @@ export async function getMessages(req: AuthenticatedRequest, res: Response) {
       [conversationId]
     );
 
-    // Mark messages as read
     await db.query(
       `UPDATE messages SET read_at = NOW()
        WHERE conversation_id = $1 AND sender_id != $2 AND read_at IS NULL`,
@@ -119,14 +128,12 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
   if (!text?.trim()) return res.status(400).json({ error: 'Message text required' });
 
   try {
-    // Verify user is part of this conversation
     const conv = await db.query(
       `SELECT * FROM conversations WHERE id = $1 AND (user_a = $2 OR user_b = $2)`,
       [conversationId, req.user!.id]
     );
     if (!conv.rows[0]) return res.status(403).json({ error: 'Access denied' });
 
-    // After first message from recipient, mark as accepted (not a request anymore)
     if (conv.rows[0].is_request && conv.rows[0].user_b === req.user!.id) {
       await db.query(
         `UPDATE conversations SET is_request = FALSE WHERE id = $1`,
@@ -163,7 +170,6 @@ export async function startConversation(req: AuthenticatedRequest, res: Response
   }
 
   try {
-    // Check if conversation already exists
     const existing = await db.query(
       `SELECT id FROM conversations
        WHERE (user_a = $1 AND user_b = $2) OR (user_a = $2 AND user_b = $1)`,
@@ -172,10 +178,8 @@ export async function startConversation(req: AuthenticatedRequest, res: Response
 
     let conversationId: string;
     if (existing.rows[0]) {
-      // Return the existing conversation ID — do NOT send any automatic message
       conversationId = existing.rows[0].id;
     } else {
-      // Create a new empty conversation (is_request = TRUE so recipient sees it as a request)
       const conv = await db.query(
         `INSERT INTO conversations (user_a, user_b, is_request)
          VALUES ($1, $2, TRUE) RETURNING id`,
@@ -184,7 +188,6 @@ export async function startConversation(req: AuthenticatedRequest, res: Response
       conversationId = conv.rows[0].id;
     }
 
-    // Return only the conversation ID — no automatic message is ever sent here
     res.json({ conversationId });
   } catch (err) {
     console.error('startConversation error:', err);
@@ -198,14 +201,12 @@ export async function sendPhotoMessage(req: AuthenticatedRequest, res: Response)
   try {
     if (!req.file) return res.status(400).json({ error: 'No photo uploaded' });
 
-    // Verify user is part of conversation
     const conv = await db.query(
       `SELECT * FROM conversations WHERE id = $1 AND (user_a = $2 OR user_b = $2)`,
       [conversationId, req.user!.id]
     );
     if (!conv.rows[0]) return res.status(403).json({ error: 'Access denied' });
 
-    // Store photo in DB
     const { v4: uuid } = await import('uuid');
     const photoId = uuid();
     const mimeType = req.file.mimetype;
