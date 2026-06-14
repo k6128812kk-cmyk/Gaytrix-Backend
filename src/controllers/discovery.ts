@@ -3,7 +3,9 @@ import { db } from '../db/pool';
 import { AuthenticatedRequest } from '../middleware/auth';
 
 // ==========================================================================
-// Discovery controller — filters apply to ALL sections (nearby + explore).
+// Discovery controller — filters apply to ALL sections.
+// showMe: 'men' = gender_identity=male, 'women' = female,
+//         'gay' = orientation=gay, 'everyone' = no filter
 // ==========================================================================
 
 function formatDiscoveryUser(row: Record<string, unknown>) {
@@ -39,29 +41,53 @@ function formatDiscoveryUser(row: Record<string, unknown>) {
   };
 }
 
-// Shared filter builder — used by both getNearby and getExplore
-function buildFilterClause(params: Record<string, unknown>) {
-  const {
-    ageMin = 18, ageMax = 99,
-    verifiedOnly = false, onlineOnly = false,
-    country, city, genderIdentity, interestedIn,
-  } = params;
+// Build filter params from query
+function buildFilters(q: Record<string, unknown>) {
+  const showMe = (q.showMe as string) || '';
+  const orientation = (q.orientation as string) || '';
+
+  // showMe translates to gender/orientation filter
+  let genderFilter = (q.genderIdentity as string) || '';
+  let orientationFilter = orientation;
+
+  if (showMe === 'men') genderFilter = 'male';
+  else if (showMe === 'women') genderFilter = 'female';
+  else if (showMe === 'gay') { orientationFilter = 'gay'; genderFilter = ''; }
+  else if (showMe === 'everyone') { genderFilter = ''; orientationFilter = ''; }
 
   return {
-    ageMin: Number(ageMin),
-    ageMax: Number(ageMax),
-    verifiedOnly: verifiedOnly === 'true' || verifiedOnly === true,
-    onlineOnly: onlineOnly === 'true' || onlineOnly === true,
-    country: (country as string) || null,
-    city: (city as string) || null,
-    genderIdentity: (genderIdentity as string) || '',
-    interestedIn: (interestedIn as string) || '',
+    ageMin: Number(q.ageMin ?? 18),
+    ageMax: Number(q.ageMax ?? 99),
+    verifiedOnly: q.verifiedOnly === 'true' || q.verifiedOnly === true,
+    onlineOnly: q.onlineOnly === 'true' || q.onlineOnly === true,
+    country: (q.country as string) || null,
+    city: (q.city as string) || null,
+    genderFilter,
+    orientationFilter,
+  };
+}
+
+// Build the shared WHERE clause for filters
+function filterWhere(f: ReturnType<typeof buildFilters>) {
+  return {
+    sql: `
+      AND (u.age IS NULL OR (u.age >= $2 AND u.age <= $3))
+      AND ($4::boolean = FALSE OR u.verification_status = 'verified')
+      AND ($5::boolean = FALSE OR (u.is_online = TRUE AND u.hide_online_status = FALSE))
+      AND ($6::text IS NULL OR u.country = $6)
+      AND ($7::text IS NULL OR u.city = $7)
+      AND ($8::text = '' OR u.gender_identity = $8 OR u.gender_identity = '')
+      AND ($9::text = '' OR u.orientation = $9)
+    `,
+    params: [f.ageMin, f.ageMax, f.verifiedOnly, f.onlineOnly,
+             f.country, f.city, f.genderFilter, f.orientationFilter],
   };
 }
 
 export async function getNearby(req: AuthenticatedRequest, res: Response) {
   const { page = 1, ...rest } = req.query;
-  const f = buildFilterClause(rest);
+  const f = buildFilters(rest);
+  const { sql, params } = filterWhere(f);
   const limit = 20;
   const offset = (Number(page) - 1) * limit;
 
@@ -69,7 +95,6 @@ export async function getNearby(req: AuthenticatedRequest, res: Response) {
     const meRes = await db.query(
       'SELECT interested_in, gender_identity FROM users WHERE id = $1', [req.user!.id]
     );
-    const myInterestedIn = f.interestedIn || meRes.rows[0]?.interested_in || 'everyone';
     const myGender = meRes.rows[0]?.gender_identity || '';
 
     const result = await db.query(
@@ -77,25 +102,17 @@ export async function getNearby(req: AuthenticatedRequest, res: Response) {
        WHERE u.id != $1
          AND u.account_status = 'active'
          AND u.invisible_mode = FALSE
-         AND (u.age IS NULL OR (u.age >= $2 AND u.age <= $3))
-         AND ($4::boolean = FALSE OR u.verification_status = 'verified')
-         AND ($5::boolean = FALSE OR (u.is_online = TRUE AND u.hide_online_status = FALSE))
-         AND ($6::text IS NULL OR u.country = $6)
-         AND ($7::text IS NULL OR u.city = $7)
-         AND ($8::text = 'everyone' OR $8::text = '' OR u.gender_identity = $8 OR u.gender_identity = '')
+         ${sql}
          AND u.id NOT IN (
            SELECT blocked_id FROM user_blocks WHERE blocker_id = $1
-           UNION
-           SELECT blocker_id FROM user_blocks WHERE blocked_id = $1
+           UNION SELECT blocker_id FROM user_blocks WHERE blocked_id = $1
          )
        ORDER BY
-         CASE WHEN ($9::text != 'everyone' AND $9::text != '' AND u.interested_in != 'everyone' AND u.interested_in = $9) THEN 0 ELSE 1 END,
          CASE WHEN u.verification_status = 'verified' THEN 0 ELSE 1 END,
          CASE WHEN u.membership_tier = 'premium' THEN 0 ELSE 1 END,
          u.last_active_at DESC
        LIMIT $10 OFFSET $11`,
-      [req.user!.id, f.ageMin, f.ageMax, f.verifiedOnly, f.onlineOnly,
-       f.country, f.city, f.genderIdentity || myInterestedIn, myGender, limit, offset]
+      [req.user!.id, ...params, limit, offset]
     );
 
     res.json(result.rows.map(formatDiscoveryUser));
@@ -107,9 +124,9 @@ export async function getNearby(req: AuthenticatedRequest, res: Response) {
 
 export async function getExplore(req: AuthenticatedRequest, res: Response) {
   const { section } = req.params;
-  const f = buildFilterClause(req.query);
+  const f = buildFilters(req.query);
+  const { sql, params } = filterWhere(f);
 
-  // Section-specific WHERE clauses (stacked ON TOP of user filters)
   let sectionWhere = '';
   let orderBy = 'u.last_active_at DESC';
 
@@ -131,22 +148,15 @@ export async function getExplore(req: AuthenticatedRequest, res: Response) {
        WHERE u.id != $1
          AND u.account_status = 'active'
          AND u.invisible_mode = FALSE
-         AND (u.age IS NULL OR (u.age >= $2 AND u.age <= $3))
-         AND ($4::boolean = FALSE OR u.verification_status = 'verified')
-         AND ($5::boolean = FALSE OR (u.is_online = TRUE AND u.hide_online_status = FALSE))
-         AND ($6::text IS NULL OR u.country = $6)
-         AND ($7::text IS NULL OR u.city = $7)
-         AND ($8::text = 'everyone' OR $8::text = '' OR u.gender_identity = $8 OR u.gender_identity = '')
+         ${sql}
          ${sectionWhere}
          AND u.id NOT IN (
            SELECT blocked_id FROM user_blocks WHERE blocker_id = $1
-           UNION
-           SELECT blocker_id FROM user_blocks WHERE blocked_id = $1
+           UNION SELECT blocker_id FROM user_blocks WHERE blocked_id = $1
          )
        ORDER BY ${orderBy}
        LIMIT 20`,
-      [req.user!.id, f.ageMin, f.ageMax, f.verifiedOnly, f.onlineOnly,
-       f.country, f.city, f.genderIdentity || '']
+      [req.user!.id, ...params]
     );
     res.json(result.rows.map(formatDiscoveryUser));
   } catch (err) {
