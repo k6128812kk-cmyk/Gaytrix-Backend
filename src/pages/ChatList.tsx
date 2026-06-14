@@ -5,12 +5,12 @@ import { PageHeader } from '@/components/PageHeader';
 import { Avatar } from '@/components/Avatar';
 import { Badge } from '@/components/Badge';
 import { chatService } from '@/api/services';
+import { wsClient } from '@/hooks/useGlobalWs';
 import type { Conversation } from '@/types';
 import styles from './ChatList.module.css';
 
 // ==========================================================================
-// ChatList — list of conversations. Message requests (first contact from
-// a non-matched user) are surfaced separately and require acceptance.
+// ChatList — list of conversations with real-time unread indicators.
 // ==========================================================================
 
 export function ChatListPage() {
@@ -21,30 +21,49 @@ export function ChatListPage() {
 
   useEffect(() => {
     chatService.getConversations()
-      .then((data) => {
-        setConversations(data);
-        setLoading(false);
-      })
-      .catch((err) => {
+      .then(data => { setConversations(data); setLoading(false); })
+      .catch(err => {
         console.error('Failed to load conversations:', err);
         setError('Failed to load conversations. Please try again.');
         setLoading(false);
       });
   }, []);
 
-  const requests = conversations.filter((c) => c.isMessageRequest);
-  const active = conversations.filter((c) => !c.isMessageRequest);
+  // Listen for new incoming messages to update unread counts live
+  useEffect(() => {
+    const handler = (msg: Record<string, unknown>) => {
+      const m = msg.message as { conversationId: string; senderId: string };
+      if (!m?.conversationId) return;
+      setConversations(prev => prev.map(c => {
+        if (c.id !== m.conversationId) return c;
+        // If the message is from the other person, increment unread
+        if (m.senderId !== c.participant.id) return c; // it's our own message
+        return { ...c, unreadCount: c.unreadCount + 1, lastMessage: msg.message as any };
+      }));
+    };
+    wsClient.addHandler('message', handler);
+    return () => wsClient.removeHandler('message', handler);
+  }, []);
+
+  // When we read a conversation, clear its local unread count
+  useEffect(() => {
+    const handler = (msg: Record<string, unknown>) => {
+      // read_receipt means the other person read our messages (no unread change here)
+    };
+    wsClient.addHandler('read_receipt', handler);
+    return () => wsClient.removeHandler('read_receipt', handler);
+  }, []);
+
+  const requests = conversations.filter(c => c.isMessageRequest);
+  const active = conversations.filter(c => !c.isMessageRequest);
 
   return (
     <div className={styles.page}>
       <PageHeader title="Chat" />
-
       <div className={styles.content}>
         {loading && (
           <div className={styles.skeletonList}>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className={styles.skeletonRow} />
-            ))}
+            {Array.from({ length: 4 }).map((_, i) => <div key={i} className={styles.skeletonRow} />)}
           </div>
         )}
 
@@ -55,16 +74,20 @@ export function ChatListPage() {
           </div>
         )}
 
-        {!loading && requests.length > 0 && (
+        {!loading && !error && requests.length > 0 && (
           <section className={styles.section}>
             <h2 className={styles.sectionTitle}>Message requests ({requests.length})</h2>
-            {requests.map((conv) => (
-              <ConversationRow key={conv.id} conversation={conv} onClick={() => navigate(`/chat/${conv.id}`)} />
+            {requests.map(conv => (
+              <ConversationRow key={conv.id} conversation={conv}
+                onClick={() => {
+                  setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, unreadCount: 0 } : c));
+                  navigate(`/chat/${conv.id}`);
+                }} />
             ))}
           </section>
         )}
 
-        {!loading && (
+        {!loading && !error && (
           <section className={styles.section}>
             {active.length === 0 ? (
               <div className={styles.empty}>
@@ -72,7 +95,13 @@ export function ChatListPage() {
                 <p>Start a conversation from someone's profile in Discover.</p>
               </div>
             ) : (
-              active.map((conv) => <ConversationRow key={conv.id} conversation={conv} onClick={() => navigate(`/chat/${conv.id}`)} />)
+              active.map(conv => (
+                <ConversationRow key={conv.id} conversation={conv}
+                  onClick={() => {
+                    setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, unreadCount: 0 } : c));
+                    navigate(`/chat/${conv.id}`);
+                  }} />
+              ))
             )}
           </section>
         )}
@@ -83,9 +112,10 @@ export function ChatListPage() {
 
 function ConversationRow({ conversation, onClick }: { conversation: Conversation; onClick: () => void }) {
   const { participant, lastMessage, unreadCount, isMessageRequest } = conversation;
+  const hasUnread = unreadCount > 0;
 
   return (
-    <button className={styles.row} onClick={onClick}>
+    <button className={`${styles.row} ${hasUnread ? styles.rowUnread : ''}`} onClick={onClick}>
       <Avatar
         src={participant.photos[0]}
         alt={participant.displayName}
@@ -97,16 +127,24 @@ function ConversationRow({ conversation, onClick }: { conversation: Conversation
       />
       <div className={styles.rowText}>
         <div className={styles.rowTop}>
-          <span className={styles.rowName}>{participant.displayName}</span>
+          <span className={`${styles.rowName} ${hasUnread ? styles.rowNameBold : ''}`}>
+            {participant.displayName}
+          </span>
           {lastMessage && (
-            <span className={styles.rowTime}>{formatDistanceToNowStrict(new Date(lastMessage.sentAt))} ago</span>
+            <span className={styles.rowTime}>
+              {formatDistanceToNowStrict(new Date(lastMessage.sentAt))} ago
+            </span>
           )}
         </div>
         <div className={styles.rowBottom}>
-          <span className={styles.rowPreview}>
-            {isMessageRequest ? 'Wants to send you a message' : lastMessage?.text ?? 'No messages yet'}
+          <span className={`${styles.rowPreview} ${hasUnread ? styles.rowPreviewBold : ''}`}>
+            {isMessageRequest
+              ? 'Wants to send you a message'
+              : lastMessage?.text ?? (lastMessage?.type === 'image' ? '📷 Photo' : 'No messages yet')}
           </span>
-          {unreadCount > 0 && <Badge variant="premium">{unreadCount}</Badge>}
+          {hasUnread && (
+            <span className={styles.unreadBadge}>{unreadCount > 99 ? '99+' : unreadCount}</span>
+          )}
         </div>
       </div>
     </button>

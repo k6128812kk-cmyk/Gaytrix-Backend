@@ -1,6 +1,7 @@
 import { api } from './client';
 import type {
-  UserProfile, MapLocation, Conversation, ChatMessage,
+  UserProfile, MapLocation, MapEvent, EventAttendee, GroupMessage,
+  Conversation, ChatMessage,
   CommunityEvent, DiscoveryFilters, VerificationRequest,
   UserReport, AdminAction, PlatformStats,
 } from '@/types';
@@ -192,14 +193,64 @@ export const chatService = {
 // Event service
 // ==========================================================================
 export const eventService = {
-  async getEvents(): Promise<CommunityEvent[]> {
-    if (USE_MOCKS) { await delay(250); return mockEvents; }
-    const { data } = await api.get<CommunityEvent[]>('/events');
+  async getEvents(): Promise<MapEvent[]> {
+    if (USE_MOCKS) { await delay(250); return []; }
+    const { data } = await api.get<MapEvent[]>('/events');
     return data;
   },
-  async rsvp(eventId: string, status: 'going' | 'interested' | 'none'): Promise<{ ok: true }> {
+  async createEvent(payload: {
+    title: string; description: string; category: string;
+    lat: number; lng: number; startsAt: string; endsAt?: string; maxAttendees?: number;
+  }): Promise<MapEvent> {
+    if (USE_MOCKS) {
+      await delay(300);
+      return { ...payload, id: `ev_${Date.now()}`, createdBy: currentUser.id,
+        creatorName: currentUser.displayName, creatorPhoto: currentUser.photos[0],
+        status: 'active', attendeeCount: 1, isAttending: true,
+        createdAt: new Date().toISOString(), reportsCount: 0,
+        groupConversationId: undefined } as MapEvent;
+    }
+    const { data } = await api.post<MapEvent>('/events', payload);
+    return data;
+  },
+  async joinEvent(eventId: string): Promise<{ ok: boolean; attendeeCount: number; groupConversationId?: string }> {
+    if (USE_MOCKS) { await delay(150); return { ok: true, attendeeCount: 1 }; }
+    const { data } = await api.post(`/events/${eventId}/join`);
+    return data;
+  },
+  async leaveEvent(eventId: string): Promise<{ ok: boolean; attendeeCount: number }> {
+    if (USE_MOCKS) { await delay(150); return { ok: true, attendeeCount: 0 }; }
+    const { data } = await api.post(`/events/${eventId}/leave`);
+    return data;
+  },
+  async deleteEvent(eventId: string): Promise<{ ok: boolean }> {
+    if (USE_MOCKS) { await delay(200); return { ok: true }; }
+    const { data } = await api.delete(`/events/${eventId}`);
+    return data;
+  },
+  async updateEvent(eventId: string, patch: Partial<{ title: string; description: string; startsAt: string; endsAt: string; maxAttendees: number }>): Promise<MapEvent> {
+    if (USE_MOCKS) { await delay(200); return {} as MapEvent; }
+    const { data } = await api.patch<MapEvent>(`/events/${eventId}`, patch);
+    return data;
+  },
+  async getAttendees(eventId: string): Promise<EventAttendee[]> {
+    if (USE_MOCKS) { await delay(150); return []; }
+    const { data } = await api.get<EventAttendee[]>(`/events/${eventId}/attendees`);
+    return data;
+  },
+  async reportEvent(eventId: string): Promise<{ ok: boolean }> {
     if (USE_MOCKS) { await delay(150); return { ok: true }; }
-    const { data } = await api.post(`/events/${eventId}/rsvp`, { status });
+    const { data } = await api.post(`/events/${eventId}/report`);
+    return data;
+  },
+  async getGroupMessages(conversationId: string): Promise<GroupMessage[]> {
+    if (USE_MOCKS) { await delay(150); return []; }
+    const { data } = await api.get<GroupMessage[]>(`/group-chat/${conversationId}/messages`);
+    return data;
+  },
+  async sendGroupMessage(conversationId: string, text: string): Promise<GroupMessage> {
+    if (USE_MOCKS) { await delay(150); return {} as GroupMessage; }
+    const { data } = await api.post<GroupMessage>(`/group-chat/${conversationId}/messages`, { text });
     return data;
   },
 };

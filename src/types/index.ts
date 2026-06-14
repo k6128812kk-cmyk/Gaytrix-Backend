@@ -3,37 +3,28 @@
 // ==========================================================================
 
 export type RelationshipStatus =
-  | 'single'
-  | 'in_relationship'
-  | 'married'
-  | 'open_relationship'
-  | 'complicated'
-  | 'prefer_not_to_say';
+  | 'single' | 'in_relationship' | 'married'
+  | 'open_relationship' | 'complicated' | 'prefer_not_to_say';
 
 export type LookingFor =
-  | 'friends'
-  | 'dating'
-  | 'relationship'
-  | 'networking'
-  | 'community'
-  | 'chat';
+  | 'friends' | 'dating' | 'relationship'
+  | 'networking' | 'community' | 'chat';
+
+export type GenderIdentity = 'male' | 'female' | 'non_binary' | 'other' | '';
+export type InterestedIn = 'men' | 'women' | 'everyone' | '';
+export type Orientation =
+  | 'gay' | 'lesbian' | 'bisexual' | 'straight'
+  | 'pansexual' | 'asexual' | 'other' | '';
 
 export type VerificationStatus = 'none' | 'pending' | 'verified' | 'rejected';
-
 export type MembershipTier = 'free' | 'premium';
-
-// Admin role — only admin, moderator set server-side, never by client
 export type AdminRole = 'super_admin' | 'admin' | 'moderator' | 'none';
-
-// Account status — set only by admins
 export type AccountStatus = 'active' | 'suspended' | 'banned' | 'shadow_banned';
 
 export interface UserProfile {
   id: string;
-  // Telegram identity — immutable, pulled from initData on every auth
   telegramId: number;
-  telegramUsername: string;        // raw @username from Telegram
-  // Profile fields chosen by the user
+  telegramUsername: string;
   displayName: string;
   photos: string[];
   age: number;
@@ -49,7 +40,6 @@ export interface UserProfile {
   interests: string[];
   occupation?: string;
   socialLinks?: { label: string; url: string }[];
-  // Status fields — set server-side
   lastActiveAt: string;
   isOnline: boolean;
   verification: VerificationStatus;
@@ -57,11 +47,12 @@ export interface UserProfile {
   adminRole: AdminRole;
   accountStatus: AccountStatus;
   registeredAt: string;
-  // Computed per-request
   distanceKm?: number;
   privacy: PrivacySettings;
-  // Reports received (visible to admins only)
   reportsCount?: number;
+  genderIdentity?: GenderIdentity;
+  interestedIn?: InterestedIn;
+  orientation?: Orientation;
 }
 
 export interface PrivacySettings {
@@ -71,22 +62,20 @@ export interface PrivacySettings {
   privateProfile: boolean;
 }
 
-// Verification request — selfie visible to admins only, never publicly
 export interface VerificationRequest {
   id: string;
   userId: string;
   telegramId: number;
   telegramUsername: string;
   displayName: string;
-  selfieUrl: string;          // only returned to admin-role users
+  selfieUrl: string;
   submittedAt: string;
   status: VerificationStatus;
-  reviewedBy?: string;        // admin userId
+  reviewedBy?: string;
   reviewedAt?: string;
   rejectionReason?: string;
 }
 
-// User report
 export interface UserReport {
   id: string;
   reporterId: string;
@@ -99,19 +88,17 @@ export interface UserReport {
   status: 'pending' | 'reviewed' | 'dismissed';
 }
 
-// Admin action log
 export interface AdminAction {
   id: string;
   adminId: string;
   adminUsername: string;
   targetUserId: string;
   targetUsername: string;
-  action: 'ban' | 'unban' | 'suspend' | 'unsuspend' | 'shadow_ban' | 'verify' | 'reject_verification' | 'remove_account' | 'send_announcement';
+  action: string;
   reason?: string;
   performedAt: string;
 }
 
-// Platform statistics for admin dashboard
 export interface PlatformStats {
   totalUsers: number;
   activeToday: number;
@@ -126,14 +113,8 @@ export interface PlatformStats {
 }
 
 export type LocationCategory =
-  | 'social_meetup'
-  | 'community_gathering'
-  | 'cafe'
-  | 'bar'
-  | 'event_venue'
-  | 'outdoor_spot'
-  | 'cruising_area'
-  | 'other';
+  | 'social_meetup' | 'community_gathering' | 'cafe'
+  | 'bar' | 'event_venue' | 'outdoor_spot' | 'cruising_area' | 'other';
 
 export interface MapLocation {
   id: string;
@@ -146,6 +127,49 @@ export interface MapLocation {
   reportsCount: number;
   createdBy: string;
   createdAt: string;
+}
+
+// Community events pinned to the map
+export interface MapEvent {
+  id: string;
+  title: string;
+  description: string;
+  category: LocationCategory;
+  lat: number;
+  lng: number;
+  startsAt: string;
+  endsAt?: string;
+  maxAttendees?: number;
+  createdBy: string;
+  creatorName: string;
+  creatorPhoto?: string;
+  groupConversationId?: string;
+  status: 'active' | 'deleted';
+  attendeeCount: number;
+  isAttending: boolean;
+  createdAt: string;
+  reportsCount: number;
+}
+
+export interface EventAttendee {
+  id: string;
+  displayName: string;
+  photos: string[];
+  verification: VerificationStatus;
+  membership: MembershipTier;
+  adminRole: AdminRole;
+}
+
+export interface GroupMessage {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  senderPhoto?: string;
+  type: 'text' | 'image';
+  text?: string;
+  mediaUrl?: string;
+  sentAt: string;
 }
 
 export interface Conversation {
@@ -181,6 +205,8 @@ export interface DiscoveryFilters {
   languages?: string[];
   verifiedOnly?: boolean;
   onlineOnly?: boolean;
+  genderIdentity?: GenderIdentity;
+  interestedIn?: InterestedIn;
 }
 
 export interface CommunityEvent {

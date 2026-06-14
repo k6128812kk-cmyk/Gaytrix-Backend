@@ -22,7 +22,9 @@ import { AdminVerification } from '@/pages/admin/AdminVerification';
 import { AdminReports } from '@/pages/admin/AdminReports';
 import { AdminAuditLog } from '@/pages/admin/AdminAuditLog';
 import { AdminModerators } from '@/pages/admin/AdminModerators';
+import { EventChatPage } from '@/pages/EventChat';
 import { useTelegram } from '@/hooks/useTelegram';
+import { useGlobalWs } from '@/hooks/useGlobalWs';
 import { useSessionStore } from '@/context/sessionStore';
 import { profileService } from '@/api/services';
 import { setInitData } from '@/api/client';
@@ -70,6 +72,9 @@ function AdminGuard({ children }: { children: ReactNode }) {
 export default function App() {
   const { initData, isReady } = useTelegram();
   const { profile, isLoading, hasCompletedOnboarding, setProfile, setLoading, isActive } = useSessionStore();
+
+  // Start persistent global WebSocket for real-time notifications
+  useGlobalWs();
 
   useEffect(() => {
     if (!isReady) return;
@@ -119,6 +124,7 @@ export default function App() {
         <Route path="/admin/reports" element={<AdminGuard><AdminReports /></AdminGuard>} />
         <Route path="/admin/audit" element={<AdminGuard><AdminAuditLog /></AdminGuard>} />
         <Route path="/admin/moderators" element={<AdminGuard><AdminModerators /></AdminGuard>} />
+        <Route path="/event-chat/:conversationId" element={<EventChatPage />} />
         <Route path="*" element={<Navigate to="/discover" replace />} />
       </Route>
     </Routes>

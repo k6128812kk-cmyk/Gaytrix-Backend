@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { SlidersHorizontal, Sparkles, Clock, ShieldCheck, TrendingUp } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { ProfileCard } from '@/components/ProfileCard';
 import { discoveryService } from '@/api/services';
-import type { UserProfile } from '@/types';
+import type { UserProfile, DiscoveryFilters } from '@/types';
 import styles from './Discover.module.css';
 
 // ==========================================================================
-// Discover — primary landing page. Shows nearby people in a grid plus
-// horizontally-scrollable "Explore" rails (Trending, New, Verified, Recent).
+// Discover — primary landing page. Loads real users, respects saved filters.
 // ==========================================================================
 
 type ExploreSection = 'trending' | 'new' | 'verified' | 'recent';
@@ -21,44 +20,67 @@ const SECTIONS: { key: ExploreSection; label: string; icon: typeof Sparkles }[] 
   { key: 'recent', label: 'Recently active', icon: Clock },
 ];
 
+function loadFilters(): Partial<DiscoveryFilters> {
+  try {
+    const saved = sessionStorage.getItem('discoveryFilters');
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return {};
+}
+
 export function DiscoverPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [nearby, setNearby] = useState<UserProfile[]>([]);
   const [explore, setExplore] = useState<Record<ExploreSection, UserProfile[]>>({
-    trending: [],
-    new: [],
-    verified: [],
-    recent: [],
+    trending: [], new: [], verified: [], recent: [],
   });
   const [loading, setLoading] = useState(true);
+  const [activeFilters, setActiveFilters] = useState(false);
 
+  // Reload when returning from filters page
   useEffect(() => {
+    const filters = loadFilters();
+    const hasFilters = Object.values(filters).some(v =>
+      Array.isArray(v) ? v.length > 0 : v !== undefined && v !== '' && v !== false
+    );
+    setActiveFilters(hasFilters);
+    setLoading(true);
+
     (async () => {
-      const [nearbyData, ...exploreData] = await Promise.all([
-        discoveryService.getNearby(),
-        discoveryService.getExplore('trending'),
-        discoveryService.getExplore('new'),
-        discoveryService.getExplore('verified'),
-        discoveryService.getExplore('recent'),
-      ]);
-      setNearby(nearbyData);
-      setExplore({
-        trending: exploreData[0],
-        new: exploreData[1],
-        verified: exploreData[2],
-        recent: exploreData[3],
-      });
-      setLoading(false);
+      try {
+        const [nearbyData, ...exploreData] = await Promise.all([
+          discoveryService.getNearby(filters),
+          discoveryService.getExplore('trending'),
+          discoveryService.getExplore('new'),
+          discoveryService.getExplore('verified'),
+          discoveryService.getExplore('recent'),
+        ]);
+        setNearby(nearbyData);
+        setExplore({
+          trending: exploreData[0],
+          new: exploreData[1],
+          verified: exploreData[2],
+          recent: exploreData[3],
+        });
+      } finally {
+        setLoading(false);
+      }
     })();
-  }, []);
+  }, [location.key]); // re-run when navigating back from filters
 
   return (
     <div className={styles.page}>
       <PageHeader
         title="Discover"
         action={
-          <button className={styles.filterButton} onClick={() => navigate('/discover/filters')} aria-label="Filters">
+          <button
+            className={`${styles.filterButton} ${activeFilters ? styles.filterButtonActive : ''}`}
+            onClick={() => navigate('/discover/filters')}
+            aria-label="Filters"
+          >
             <SlidersHorizontal size={18} />
+            {activeFilters && <span className={styles.filterDot} />}
           </button>
         }
       />

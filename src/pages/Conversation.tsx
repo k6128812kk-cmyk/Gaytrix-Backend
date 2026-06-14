@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { PageHeader } from '@/components/PageHeader';
 import { chatService } from '@/api/services';
 import { useSessionStore } from '@/context/sessionStore';
+import { wsClient } from '@/hooks/useGlobalWs';
 import type { ChatMessage, Conversation } from '@/types';
 import styles from './Conversation.module.css';
 
@@ -65,6 +66,8 @@ export function ConversationPage() {
         if (msg.type === 'auth_ok') {
           setConnected(true);
           ws.send(JSON.stringify({ type: 'mark_read', conversationId: id }));
+          // Request updated global unread count via the shared connection
+          wsClient.send({ type: 'get_unread_count' });
         }
         if (msg.type === 'message' && msg.message.conversationId === id) {
           setMessages((prev) => {

@@ -136,3 +136,19 @@
   color: #1a1014;
   flex-shrink: 0;
 }
+
+/* Group chat additions */
+.groupSender {
+  margin-bottom: 2px;
+}
+.groupSenderName {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-secondary, #5ee6d0);
+}
+.loadingMsg, .emptyMsg {
+  text-align: center;
+  color: var(--color-text-faint, #666);
+  font-size: 14px;
+  padding: 32px 16px;
+}
