@@ -8,6 +8,7 @@ dotenv.config();
 
 import http from 'http';
 import { testConnection } from './db/pool';
+import { migrate } from './db/migrate';
 import { startBot, bot } from './bot/bot';
 import routes from './routes/index';
 import { setupWebSocketServer } from './ws/chat';
@@ -84,6 +85,7 @@ app.get('/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().to
 async function start() {
   try {
     await testConnection();
+    await migrate(); // Auto-run migrations on every startup (idempotent — uses IF NOT EXISTS)
 
     const webhookUrl = process.env.WEBHOOK_URL;
     await startBot(IS_PRODUCTION && !!webhookUrl, webhookUrl);

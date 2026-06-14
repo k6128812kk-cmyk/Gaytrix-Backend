@@ -37,7 +37,6 @@ function formatDiscoveryUser(row: Record<string, unknown>) {
       hideExactLocation: row.hide_exact_location,
       invisibleMode: row.invisible_mode,
       hideOnlineStatus: row.hide_online_status,
-      privateProfile: row.private_profile,
     },
   };
 }

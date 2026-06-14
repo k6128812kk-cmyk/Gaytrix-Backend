@@ -238,11 +238,15 @@ async function migrate() {
     throw err;
   } finally {
     client.release();
-    await db.end();
   }
 }
 
-migrate();
+export { migrate };
+
+// Standalone runner (called via ts-node directly)
+if (require.main === module) {
+  migrate().then(() => db.end()).catch((err) => { console.error(err); process.exit(1); });
+}
 
 // ---- Stories ----
     await client.query(`
