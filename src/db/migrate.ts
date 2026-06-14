@@ -230,21 +230,7 @@ async function migrate() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_event_attendees_event ON event_attendees(event_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_group_messages_conv ON group_messages(conversation_id, sent_at)`);
 
-    await client.query('COMMIT');
-    console.log('✅ Migration complete — all tables created');
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('❌ Migration failed:', err);
-    throw err;
-  } finally {
-    client.release();
-    await db.end();
-  }
-}
-
-migrate();
-
-// ---- Stories ----
+    // ── Stories ──────────────────────────────────────────────────────────
     await client.query(`
       CREATE TABLE IF NOT EXISTS stories (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -261,7 +247,8 @@ migrate();
         PRIMARY KEY (story_id, viewer_id)
       )
     `);
-    // ---- Community Groups ----
+
+    // ── Community Groups ─────────────────────────────────────────────────
     await client.query(`
       CREATE TABLE IF NOT EXISTS community_groups (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -291,6 +278,27 @@ migrate();
         sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
+
     await client.query(`CREATE INDEX IF NOT EXISTS idx_stories_user ON stories(user_id, created_at DESC)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_story_views ON story_views(story_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_groups_last_msg ON community_groups(last_message_at DESC)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_group_msgs ON community_group_messages(group_id, sent_at)`);
+
+    await client.query('COMMIT');
+    console.log('✅ Migration complete — all tables created');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('❌ Migration failed:', err);
+    throw err;
+  } finally {
+    client.release();
+    // NOTE: do NOT call db.end() here — pool stays open when called from index.ts
+  }
+}
+
+export { migrate };
+
+// Standalone runner: node -r tsx/cjs src/db/migrate.ts
+if (require.main === module) {
+  migrate().then(() => db.end()).catch((err) => { console.error(err); process.exit(1); });
+}
