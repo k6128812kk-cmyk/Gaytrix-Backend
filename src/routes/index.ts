@@ -4,6 +4,7 @@ import path from 'path';
 import { v4 as uuid } from 'uuid';
 import { authMiddleware, adminMiddleware } from '../middleware/auth';
 import { getMe, updateMe, getProfile, reportUser, blockUser } from '../controllers/profile';
+import { createInvoice } from '../controllers/premium';
 import { getNearby, getExplore } from '../controllers/discovery';
 import { getConversations, getMessages, sendMessage, startConversation } from '../controllers/messages';
 import {
@@ -73,6 +74,11 @@ router.post('/profile/photos', uploadPhoto.single('photo'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   res.json({ url: `/uploads/photos/${req.file.filename}` });
 });
+
+// ------------------------------------------------------------------
+// Premium
+// ------------------------------------------------------------------
+router.post('/premium/create-invoice', createInvoice);
 
 // ------------------------------------------------------------------
 // Discovery

@@ -1,5 +1,6 @@
 import { Telegraf } from 'telegraf';
 import dotenv from 'dotenv';
+import { grantPremium } from '../controllers/premium';
 dotenv.config();
 
 // ==========================================================================
