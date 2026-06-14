@@ -157,9 +157,9 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
 }
 
 export async function startConversation(req: AuthenticatedRequest, res: Response) {
-  const { targetUserId, text } = req.body;
-  if (!targetUserId || !text?.trim()) {
-    return res.status(400).json({ error: 'targetUserId and text required' });
+  const { targetUserId } = req.body;
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'targetUserId required' });
   }
 
   try {
@@ -172,8 +172,10 @@ export async function startConversation(req: AuthenticatedRequest, res: Response
 
     let conversationId: string;
     if (existing.rows[0]) {
+      // Return the existing conversation ID — do NOT send any automatic message
       conversationId = existing.rows[0].id;
     } else {
+      // Create a new empty conversation (is_request = TRUE so recipient sees it as a request)
       const conv = await db.query(
         `INSERT INTO conversations (user_a, user_b, is_request)
          VALUES ($1, $2, TRUE) RETURNING id`,
@@ -182,24 +184,8 @@ export async function startConversation(req: AuthenticatedRequest, res: Response
       conversationId = conv.rows[0].id;
     }
 
-    // Send first message
-    const msg = await db.query(
-      `INSERT INTO messages (conversation_id, sender_id, content_type, text)
-       VALUES ($1, $2, 'text', $3)
-       RETURNING id, conversation_id, sender_id, content_type as type, text, sent_at, read_at`,
-      [conversationId, req.user!.id, text.trim()]
-    );
-
-    res.json({
-      conversationId,
-      message: {
-        id: msg.rows[0].id,
-        senderId: msg.rows[0].sender_id,
-        type: msg.rows[0].type,
-        text: msg.rows[0].text,
-        sentAt: msg.rows[0].sent_at,
-      },
-    });
+    // Return only the conversation ID — no automatic message is ever sent here
+    res.json({ conversationId });
   } catch (err) {
     console.error('startConversation error:', err);
     res.status(500).json({ error: 'Server error' });

@@ -38,7 +38,7 @@ export function setupWebSocketServer(server: Server) {
   const wss = new WebSocketServer({ server, path: '/ws' });
 
   wss.on('connection', (ws: WebSocket, _req: IncomingMessage) => {
-    let userId: string | null = null;
+    let userId: string = '';
     let authed = false;
 
     const heartbeat = setInterval(() => {
@@ -74,7 +74,7 @@ export function setupWebSocketServer(server: Server) {
           return;
         }
 
-        if (!authed || !userId) { ws.close(4001, 'Not authenticated'); return; }
+        if (!authed || !userId.length) { ws.close(4001, 'Not authenticated'); return; }
 
         // ── Send message ────────────────────────────────────────────
         if (msg.type === 'send_message') {
@@ -161,6 +161,24 @@ export function setupWebSocketServer(server: Server) {
              WHERE conversation_id = $1 AND sender_id != $2 AND read_at IS NULL`,
             [conversationId, userId]
           );
+
+          // Notify the other participant that their messages have been read
+          const conv = await db.query(
+            `SELECT user_a, user_b FROM conversations WHERE id = $1 AND (user_a = $2 OR user_b = $2)`,
+            [conversationId, userId]
+          );
+          if (conv.rows[0]) {
+            const recipientId = conv.rows[0].user_a === userId
+              ? conv.rows[0].user_b
+              : conv.rows[0].user_a;
+            const recipientSockets = connections.get(recipientId);
+            if (recipientSockets) {
+              const payload = JSON.stringify({ type: 'read_receipt', conversationId, readBy: userId });
+              recipientSockets.forEach(sock => {
+                if (sock.readyState === WebSocket.OPEN) sock.send(payload);
+              });
+            }
+          }
         }
 
       } catch (err) {

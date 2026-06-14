@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { db } from '../db/pool';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { v4 as uuid } from 'uuid';
@@ -27,7 +27,7 @@ export async function uploadPhoto(req: AuthenticatedRequest, res: Response) {
       [photoId, req.user!.id, dataUrl]
     );
 
-    // Return a URL that the frontend can use to retrieve this photo
+    // Return a permanent URL that the frontend can use to retrieve this photo
     const host = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
     res.json({ url: `${host}/v1/photos/${photoId}` });
   } catch (err) {
@@ -36,7 +36,7 @@ export async function uploadPhoto(req: AuthenticatedRequest, res: Response) {
   }
 }
 
-export async function servePhoto(req: AuthenticatedRequest, res: Response) {
+export async function servePhoto(req: Request, res: Response) {
   try {
     const result = await db.query(
       'SELECT data_url FROM photos WHERE id = $1',

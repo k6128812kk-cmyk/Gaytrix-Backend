@@ -14,7 +14,7 @@ import {
 import {
   getStats, getUsers, banUser, suspendUser, unsuspendUser,
   removeUser, getReports, dismissReport, getAuditLog, sendAnnouncement,
-  revokePremium, removeVerification,
+  revokePremium, grantPremium, removeVerification, grantVerification,
 } from '../controllers/admin';
 
 // Memory storage — photos stored in DB as base64, no disk needed
@@ -51,7 +51,7 @@ const router = Router();
 // Photo serving — public, no auth needed (photos are UUID-based so
 // they are unguessable without knowing the URL)
 // ------------------------------------------------------------------
-router.get('/photos/:photoId', servePhoto as any);
+router.get('/photos/:photoId', servePhoto);
 
 // All remaining routes require Telegram authentication
 router.use(authMiddleware);
@@ -115,7 +115,9 @@ router.post('/admin/users/:userId/ban', adminMiddleware, banUser);
 router.post('/admin/users/:userId/suspend', adminMiddleware, suspendUser);
 router.post('/admin/users/:userId/unsuspend', adminMiddleware, unsuspendUser);
 router.post('/admin/users/:userId/revoke-premium', adminMiddleware, revokePremium);
+router.post('/admin/users/:userId/grant-premium', adminMiddleware, grantPremium);
 router.post('/admin/users/:userId/remove-verification', adminMiddleware, removeVerification);
+router.post('/admin/users/:userId/grant-verification', adminMiddleware, grantVerification);
 router.delete('/admin/users/:userId', adminMiddleware, removeUser);
 router.get('/admin/verification/queue', adminMiddleware, getVerificationQueue);
 router.post('/admin/verification/:requestId/approve', adminMiddleware, approveVerification);

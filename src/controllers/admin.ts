@@ -274,11 +274,32 @@ export async function revokePremium(req: AuthenticatedRequest, res: Response) {
   }
 }
 
+export async function grantPremium(req: AuthenticatedRequest, res: Response) {
+  const { userId } = req.params;
+  if (await isProtected(userId)) return res.status(403).json({ error: 'Cannot moderate this account' });
+  try {
+    await db.query(`UPDATE users SET membership_tier = 'premium' WHERE id = $1`, [userId]);
+    await db.query(
+      `INSERT INTO admin_actions (admin_id, target_id, action, reason) VALUES ($1, $2, 'grant_premium', 'Admin granted premium')`,
+      [req.user!.id, userId]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('grantPremium error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+}
+
 export async function removeVerification(req: AuthenticatedRequest, res: Response) {
   const { userId } = req.params;
   if (await isProtected(userId)) return res.status(403).json({ error: 'Cannot moderate this account' });
   try {
+    // Reset verification_status to 'none' and cancel any pending verification requests
     await db.query(`UPDATE users SET verification_status = 'none' WHERE id = $1`, [userId]);
+    await db.query(
+      `UPDATE verification_requests SET status = 'cancelled' WHERE user_id = $1 AND status IN ('pending', 'verified')`,
+      [userId]
+    );
     await db.query(
       `INSERT INTO admin_actions (admin_id, target_id, action, reason) VALUES ($1, $2, 'remove_verification', 'Admin removed verification badge')`,
       [req.user!.id, userId]
@@ -286,6 +307,28 @@ export async function removeVerification(req: AuthenticatedRequest, res: Respons
     res.json({ ok: true });
   } catch (err) {
     console.error('removeVerification error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+}
+
+export async function grantVerification(req: AuthenticatedRequest, res: Response) {
+  const { userId } = req.params;
+  if (await isProtected(userId)) return res.status(403).json({ error: 'Cannot moderate this account' });
+  try {
+    await db.query(`UPDATE users SET verification_status = 'verified' WHERE id = $1`, [userId]);
+    // Also mark any pending verification request as verified
+    await db.query(
+      `UPDATE verification_requests SET status = 'verified', reviewed_by = $1, reviewed_at = NOW()
+       WHERE user_id = $2 AND status = 'pending'`,
+      [req.user!.id, userId]
+    );
+    await db.query(
+      `INSERT INTO admin_actions (admin_id, target_id, action, reason) VALUES ($1, $2, 'verify', 'Admin granted verification')`,
+      [req.user!.id, userId]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('grantVerification error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 }
