@@ -3,7 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import { v4 as uuid } from 'uuid';
 import { authMiddleware, adminMiddleware } from '../middleware/auth';
-import { getMe, updateMe, getProfile, reportUser, blockUser } from '../controllers/profile';
+import { getMe, updateMe, getProfile, reportUser, blockUser, getBlockedUsers, unblockUser } from '../controllers/profile';
 import { createInvoice } from '../controllers/premium';
 import { getNearby, getExplore } from '../controllers/discovery';
 import { getConversations, getMessages, sendMessage, startConversation } from '../controllers/messages';
@@ -14,6 +14,7 @@ import {
 import {
   getStats, getUsers, banUser, suspendUser, unsuspendUser,
   removeUser, getReports, dismissReport, getAuditLog, sendAnnouncement,
+  revokePremium, removeVerification,
 } from '../controllers/admin';
 
 // ==========================================================================
@@ -22,7 +23,7 @@ import {
 // ==========================================================================
 
 const selfieStorage = multer.diskStorage({
-  destination: './uploads/selfies',
+  destination: path.join(process.cwd(), 'uploads/selfies'),
   filename: (_, file, cb) => {
     const ext = path.extname(file.originalname);
     cb(null, `${uuid()}${ext}`);
@@ -30,7 +31,7 @@ const selfieStorage = multer.diskStorage({
 });
 
 const photoStorage = multer.diskStorage({
-  destination: './uploads/photos',
+  destination: path.join(process.cwd(), 'uploads/photos'),
   filename: (_, file, cb) => {
     const ext = path.extname(file.originalname);
     cb(null, `${uuid()}${ext}`);
@@ -66,13 +67,16 @@ router.use(authMiddleware);
 router.get('/profile/me', getMe);
 router.patch('/profile/me', updateMe);
 router.get('/profiles/:id', getProfile);
+router.get('/users/blocked', getBlockedUsers);
 router.post('/users/:id/report', reportUser);
 router.post('/users/:id/block', blockUser);
+router.delete('/users/:id/block', unblockUser);
 
-// Photo upload — returns URL to store in profile.photos array
+// Photo upload — returns absolute URL to store in profile.photos array
 router.post('/profile/photos', uploadPhoto.single('photo'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  res.json({ url: `/uploads/photos/${req.file.filename}` });
+  const host = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+  res.json({ url: `${host}/uploads/photos/${req.file.filename}` });
 });
 
 // ------------------------------------------------------------------
@@ -107,6 +111,8 @@ router.get('/admin/users', adminMiddleware, getUsers);
 router.post('/admin/users/:userId/ban', adminMiddleware, banUser);
 router.post('/admin/users/:userId/suspend', adminMiddleware, suspendUser);
 router.post('/admin/users/:userId/unsuspend', adminMiddleware, unsuspendUser);
+router.post('/admin/users/:userId/revoke-premium', adminMiddleware, revokePremium);
+router.post('/admin/users/:userId/remove-verification', adminMiddleware, removeVerification);
 router.delete('/admin/users/:userId', adminMiddleware, removeUser);
 router.get('/admin/verification/queue', adminMiddleware, getVerificationQueue);
 router.post('/admin/verification/:requestId/approve', adminMiddleware, approveVerification);
