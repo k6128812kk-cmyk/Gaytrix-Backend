@@ -4,17 +4,10 @@ import { db } from '../db/pool';
 
 // ==========================================================================
 // Telegram initData verification — the ONLY way a user proves identity.
-//
-// Role system:
-//   - "admin"     : @k54lid (telegramId 528269003) — full access
-//   - "moderator" : can review verifications, reports, suspend/ban users
-//   - "none"      : regular user
-//
-// Note: "super_admin" in DB is treated as "admin" for all purposes.
 // ==========================================================================
 
 const ADMIN_TELEGRAM_ID = parseInt(process.env.SUPER_ADMIN_TELEGRAM_ID || '528269003');
-const BOT_TOKEN = process.env.BOT_TOKEN!;
+const BOT_TOKEN = process.env.BOT_TOKEN || '';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -27,34 +20,47 @@ export interface AuthenticatedRequest extends Request {
 }
 
 function verifyTelegramInitData(initData: string): Record<string, string> | null {
-  const params = new URLSearchParams(initData);
-  const hash = params.get('hash');
-  if (!hash) return null;
+  if (!BOT_TOKEN) {
+    console.error('BOT_TOKEN is not set — cannot verify initData');
+    return null;
+  }
 
-  const dataCheckArr: string[] = [];
-  params.forEach((value, key) => {
-    if (key !== 'hash') dataCheckArr.push(`${key}=${value}`);
-  });
-  dataCheckArr.sort();
-  const dataCheckString = dataCheckArr.join('\n');
+  try {
+    const params = new URLSearchParams(initData);
+    const hash = params.get('hash');
+    if (!hash) return null;
 
-  const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
-  const expectedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+    const dataCheckArr: string[] = [];
+    params.forEach((value, key) => {
+      if (key !== 'hash') dataCheckArr.push(`${key}=${value}`);
+    });
+    dataCheckArr.sort();
+    const dataCheckString = dataCheckArr.join('\n');
 
-  if (expectedHash !== hash) return null;
+    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+    const expectedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
-  const authDate = parseInt(params.get('auth_date') || '0');
-  const now = Math.floor(Date.now() / 1000);
-  if (now - authDate > 3600) return null;
+    if (expectedHash !== hash) return null;
 
-  const result: Record<string, string> = {};
-  params.forEach((value, key) => { result[key] = value; });
-  return result;
+    const authDate = parseInt(params.get('auth_date') || '0');
+    const now = Math.floor(Date.now() / 1000);
+    // Allow 24 hours — Telegram refreshes initData on each app open,
+    // but users may keep the app open or re-open within a day.
+    if (now - authDate > 86400) return null;
+
+    const result: Record<string, string> = {};
+    params.forEach((value, key) => { result[key] = value; });
+    return result;
+  } catch (err) {
+    console.error('verifyTelegramInitData error:', err);
+    return null;
+  }
 }
 
 export async function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   const initData = req.headers['x-telegram-init-data'] as string;
 
+  // Development bypass — never active in production (NODE_ENV=production on Railway)
   if (!initData && process.env.NODE_ENV === 'development') {
     req.user = {
       id: 'dev-admin',
@@ -87,9 +93,6 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
   }
 
   try {
-    // Admin role: if this is the admin telegram ID, always set to 'admin'
-    // For existing users with super_admin in DB, treat as admin
-    // For moderators, keep their moderator role
     const isAdminById = telegramUser.id === ADMIN_TELEGRAM_ID;
 
     const result = await db.query(
@@ -132,7 +135,7 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
 
     next();
   } catch (err) {
-    console.error('Auth error:', err);
+    console.error('Auth DB error:', err);
     return res.status(500).json({ error: 'Authentication failed' });
   }
 }
@@ -155,7 +158,6 @@ export function adminOnlyMiddleware(req: AuthenticatedRequest, res: Response, ne
   next();
 }
 
-// Super admin only (legacy, same as admin)
 export function superAdminMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   const role = req.user?.adminRole;
   if (role !== 'admin' && role !== 'super_admin') {
