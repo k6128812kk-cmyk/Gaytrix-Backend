@@ -28,7 +28,7 @@ app.use(helmet({
 }));
 
 app.use(cors({
-  origin: IS_PRODUCTION ? [FRONTEND_URL] : '*',
+  origin: '*',
   methods: ['GET', 'POST', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'X-Telegram-Init-Data'],
 }));
