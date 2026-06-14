@@ -14,7 +14,7 @@ import { setupWebSocketServer } from './ws/chat';
 import fs from 'fs';
 
 // ==========================================================================
-// GayTrix Backend Server
+// K5 Backend Server
 // ==========================================================================
 
 const app = express();
@@ -92,7 +92,7 @@ async function start() {
     setupWebSocketServer(server);
 
     server.listen(PORT, () => {
-      console.log(`✅ GayTrix backend running on port ${PORT}`);
+      console.log(`✅ K5 backend running on port ${PORT}`);
       console.log(`   Mode: ${IS_PRODUCTION ? 'production' : 'development'}`);
       console.log(`   Bot: ${IS_PRODUCTION ? 'webhook' : 'polling'}`);
     });

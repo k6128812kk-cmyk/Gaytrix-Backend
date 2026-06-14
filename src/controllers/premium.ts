@@ -19,9 +19,9 @@ const BOT_TOKEN = process.env.BOT_TOKEN!;
 const ADMIN_TELEGRAM_ID = parseInt(process.env.SUPER_ADMIN_TELEGRAM_ID || '528269003');
 
 const PLANS: Record<string, { title: string; description: string; stars: number; adminOnly?: boolean }> = {
-  monthly:   { title: 'GayTrix Premium — Monthly',   description: 'Unlimited boosts, advanced filters, and more for 1 month.',   stars: 250 },
-  quarterly: { title: 'GayTrix Premium — 3 Months',  description: 'Unlimited boosts, advanced filters, and more for 3 months.',  stars: 650 },
-  yearly:    { title: 'GayTrix Premium — Yearly',     description: 'Unlimited boosts, advanced filters, and more for 1 year.',    stars: 2200 },
+  monthly:   { title: 'K5 Premium — Monthly',   description: 'Unlimited boosts, advanced filters, and more for 1 month.',   stars: 250 },
+  quarterly: { title: 'K5 Premium — 3 Months',  description: 'Unlimited boosts, advanced filters, and more for 3 months.',  stars: 650 },
+  yearly:    { title: 'K5 Premium — Yearly',     description: 'Unlimited boosts, advanced filters, and more for 1 year.',    stars: 2200 },
   admin_test: { title: '⭐ Admin Test Plan',          description: 'Admin-only test subscription for payment system verification.', stars: 1, adminOnly: true },
 };
 

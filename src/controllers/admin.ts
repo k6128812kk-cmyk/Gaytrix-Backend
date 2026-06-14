@@ -347,7 +347,7 @@ export async function sendAnnouncement(req: AuthenticatedRequest, res: Response)
     const { sendBroadcast } = await import('../bot/bot');
     await sendBroadcast(
       users.rows.map(r => r.telegram_id),
-      `📢 *GayTrix Announcement*\n\n${message}`
+      `📢 *K5 Announcement*\n\n${message}`
     );
 
     await db.query(

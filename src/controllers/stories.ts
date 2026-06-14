@@ -228,7 +228,7 @@ export async function replyToStory(req: AuthenticatedRequest, res: Response) {
         const senderName = senderRes.rows[0]?.display_name || 'Someone';
         await sendNotification(
           notifyRes.rows[0].telegram_id,
-          `💬 ${senderName} replied to your story on GayTrix`
+          `💬 ${senderName} replied to your story on K5`
         );
       }
     } catch { /* notification failure is non-fatal */ }

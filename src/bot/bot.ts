@@ -16,12 +16,12 @@ export const bot = new Telegraf(BOT_TOKEN);
 bot.start(async (ctx) => {
   const user = ctx.from;
   await ctx.reply(
-    `👋 Welcome to *GayTrix*, ${user.first_name}!\n\nThe LGBTQ+ community discovery platform built inside Telegram.\n\nTap the button below to open the app:`,
+    `👋 Welcome to *K5*, ${user.first_name}!\n\nThe LGBTQ+ community discovery platform built inside Telegram.\n\nTap the button below to open the app:`,
     {
       parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [[
-          { text: '🌈 Open GayTrix', web_app: { url: MINI_APP_URL } },
+          { text: '🌈 Open K5', web_app: { url: MINI_APP_URL } },
         ]],
       },
     }
@@ -30,22 +30,22 @@ bot.start(async (ctx) => {
 
 bot.command('help', async (ctx) => {
   await ctx.reply(
-    `*GayTrix Help*\n\n` +
-    `/start — Open GayTrix\n` +
+    `*K5 Help*\n\n` +
+    `/start — Open K5\n` +
     `/profile — View your profile\n` +
     `/privacy — Manage privacy settings\n\n` +
-    `For support, contact @GayTrixSupport`,
+    `For support, contact @K5Support`,
     { parse_mode: 'Markdown' }
   );
 });
 
 bot.command('profile', async (ctx) => {
   await ctx.reply(
-    'Open GayTrix to manage your profile:',
+    'Open K5 to manage your profile:',
     {
       reply_markup: {
         inline_keyboard: [[
-          { text: 'Open GayTrix', web_app: { url: `${MINI_APP_URL}/profile` } },
+          { text: 'Open K5', web_app: { url: `${MINI_APP_URL}/profile` } },
         ]],
       },
     }
@@ -70,7 +70,7 @@ bot.on('successful_payment', async (ctx) => {
   );
 
   await ctx.reply(
-    '⭐ *Premium activated!*\n\nThank you for your support. Enjoy all GayTrix Premium features!',
+    '⭐ *Premium activated!*\n\nThank you for your support. Enjoy all K5 Premium features!',
     { parse_mode: 'Markdown' }
   );
 });
@@ -106,7 +106,7 @@ export async function startBot(useWebhook = false, webhookUrl?: string) {
     await bot.telegram.setChatMenuButton({
       menuButton: {
         type: 'web_app',
-        text: '🌈 Open GayTrix',
+        text: '🌈 Open K5',
         web_app: { url: MINI_APP_URL },
       },
     });

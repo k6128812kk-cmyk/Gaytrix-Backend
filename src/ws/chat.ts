@@ -168,7 +168,7 @@ export function setupWebSocketServer(server: Server) {
                 const { sendNotification } = await import('../bot/bot');
                 await sendNotification(
                   recipientData.rows[0].telegram_id,
-                  '💬 You have a new message on GayTrix.'
+                  '💬 You have a new message on K5.'
                 );
               }
             } catch (notifErr) {
