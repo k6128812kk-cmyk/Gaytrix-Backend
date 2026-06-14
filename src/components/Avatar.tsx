@@ -28,7 +28,7 @@ export function Avatar({
   else if (membership === 'premium') ringClass = styles.ringPremium;
   else if (isOnline) ringClass = styles.ringOnline;
 
-  const isStaff = adminRole === 'super_admin' || adminRole === 'admin';
+  const isAdminOrModerator = adminRole === 'super_admin' || adminRole === 'admin' || adminRole === 'moderator';
   const badgeSize = Math.max(14, size * 0.26);
 
   return (
@@ -39,13 +39,13 @@ export function Avatar({
         </div>
       </div>
       {isOnline && <span className={styles.onlineDot} aria-label="Online" />}
-      {showBadge && verification === 'verified' && (
+      {showBadge && (isAdminOrModerator || verification === 'verified') && (
         <span
           className={styles.verifiedBadge}
-          aria-label={isStaff ? 'Staff verified' : 'Verified profile'}
-          style={{ color: isStaff ? 'var(--color-gold, #f5c518)' : 'var(--color-info, #4fb8ff)' }}
+          aria-label={isAdminOrModerator ? 'Staff member' : 'Verified profile'}
+          style={{ color: isAdminOrModerator ? 'var(--color-gold, #f5c518)' : 'var(--color-info, #4fb8ff)' }}
         >
-          {isStaff
+          {isAdminOrModerator
             ? <ShieldCheck size={badgeSize} strokeWidth={2.5} />
             : <CheckCircle2 size={badgeSize} strokeWidth={2.5} />
           }

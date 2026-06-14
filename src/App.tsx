@@ -21,6 +21,7 @@ import { AdminUsers } from '@/pages/admin/AdminUsers';
 import { AdminVerification } from '@/pages/admin/AdminVerification';
 import { AdminReports } from '@/pages/admin/AdminReports';
 import { AdminAuditLog } from '@/pages/admin/AdminAuditLog';
+import { AdminModerators } from '@/pages/admin/AdminModerators';
 import { useTelegram } from '@/hooks/useTelegram';
 import { useSessionStore } from '@/context/sessionStore';
 import { profileService } from '@/api/services';
@@ -61,8 +62,8 @@ function BannedScreen({ status }: { status: string }) {
 }
 
 function AdminGuard({ children }: { children: ReactNode }) {
-  const { isAdmin } = useSessionStore();
-  if (!isAdmin()) return <Navigate to="/discover" replace />;
+  const { isModerator } = useSessionStore();
+  if (!isModerator()) return <Navigate to="/discover" replace />;
   return <>{children}</>;
 }
 
@@ -117,6 +118,7 @@ export default function App() {
         <Route path="/admin/verification" element={<AdminGuard><AdminVerification /></AdminGuard>} />
         <Route path="/admin/reports" element={<AdminGuard><AdminReports /></AdminGuard>} />
         <Route path="/admin/audit" element={<AdminGuard><AdminAuditLog /></AdminGuard>} />
+        <Route path="/admin/moderators" element={<AdminGuard><AdminModerators /></AdminGuard>} />
         <Route path="*" element={<Navigate to="/discover" replace />} />
       </Route>
     </Routes>

@@ -39,7 +39,7 @@ export function AdminDashboard() {
     setTimeout(() => setSent(false), 3000);
   }
 
-  const isSuperAdmin = profile?.adminRole === 'super_admin';
+  const isAdminRole = profile?.adminRole === 'super_admin' || profile?.adminRole === 'admin';
 
   return (
     <div className={styles.page}>
@@ -48,7 +48,7 @@ export function AdminDashboard() {
         showBack
         action={
           <div className={styles.adminBadge}>
-            {isSuperAdmin ? '👑 Super Admin' : '🛡 Admin'}
+            {isAdminRole ? '👑 Admin' : '🛡 Moderator'}
           </div>
         }
       />
@@ -78,10 +78,14 @@ export function AdminDashboard() {
             <NavItem icon={AlertTriangle} label="Reports" sublabel="Review user reports" to="/admin/reports"
               badge={stats?.pendingReports} />
             <NavItem icon={Clock} label="Audit log" sublabel="All admin actions" to="/admin/audit" />
+            {isAdminRole && (
+              <NavItem icon={ShieldCheck} label="Moderators" sublabel="Manage moderator team" to="/admin/moderators" />
+            )}
           </nav>
         </section>
 
-        {/* Broadcast announcement */}
+        {/* Broadcast announcement — admin only */}
+        {isAdminRole && (
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Send announcement</h2>
           <div className={styles.announcementBox}>
@@ -102,6 +106,7 @@ export function AdminDashboard() {
             </div>
           </div>
         </section>
+        )}
       </div>
     </div>
   );

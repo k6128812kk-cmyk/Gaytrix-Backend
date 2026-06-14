@@ -17,12 +17,19 @@ export function ChatListPage() {
   const navigate = useNavigate();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    chatService.getConversations().then((data) => {
-      setConversations(data);
-      setLoading(false);
-    });
+    chatService.getConversations()
+      .then((data) => {
+        setConversations(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('Failed to load conversations:', err);
+        setError('Failed to load conversations. Please try again.');
+        setLoading(false);
+      });
   }, []);
 
   const requests = conversations.filter((c) => c.isMessageRequest);
@@ -38,6 +45,13 @@ export function ChatListPage() {
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className={styles.skeletonRow} />
             ))}
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className={styles.empty}>
+            <h3>Something went wrong</h3>
+            <p>{error}</p>
           </div>
         )}
 

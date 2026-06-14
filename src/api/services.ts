@@ -302,6 +302,21 @@ export const adminService = {
     const { data } = await api.post('/admin/announcements', { message });
     return data;
   },
+  async getModerators(): Promise<UserProfile[]> {
+    if (USE_MOCKS) { await delay(300); return []; }
+    const { data } = await api.get<UserProfile[]>('/admin/moderators');
+    return data;
+  },
+  async promoteModerator(userId: string): Promise<{ ok: true }> {
+    if (USE_MOCKS) { await delay(300); return { ok: true }; }
+    const { data } = await api.post(`/admin/users/${userId}/promote-moderator`);
+    return data;
+  },
+  async demoteModerator(userId: string): Promise<{ ok: true }> {
+    if (USE_MOCKS) { await delay(300); return { ok: true }; }
+    const { data } = await api.post(`/admin/users/${userId}/demote-moderator`);
+    return data;
+  },
   async getAuditLog(): Promise<AdminAction[]> {
     if (USE_MOCKS) { await delay(250); return mockAdminActions; }
     const { data } = await api.get<AdminAction[]>('/admin/audit-log');

@@ -17,8 +17,8 @@ interface SessionState {
   setLoading: (loading: boolean) => void;
   completeOnboarding: () => void;
   // Convenience selectors
-  isSuperAdmin: () => boolean;
   isAdmin: () => boolean;
+  isModerator: () => boolean;
   isActive: () => boolean;
 }
 
@@ -55,10 +55,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   completeOnboarding: () => set({ hasCompletedOnboarding: true }),
 
   // Admin checks — read from server-returned profile, never client-set
-  isSuperAdmin: () => get().profile?.adminRole === 'super_admin',
   isAdmin: () => {
     const role = get().profile?.adminRole;
     return role === 'super_admin' || role === 'admin';
+  },
+  isModerator: () => {
+    const role = get().profile?.adminRole;
+    return role === 'super_admin' || role === 'admin' || role === 'moderator';
   },
   // Banned/suspended users cannot use the app
   isActive: () => get().profile?.accountStatus === 'active',

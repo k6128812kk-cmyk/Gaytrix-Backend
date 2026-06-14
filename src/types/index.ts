@@ -22,8 +22,8 @@ export type VerificationStatus = 'none' | 'pending' | 'verified' | 'rejected';
 
 export type MembershipTier = 'free' | 'premium';
 
-// Admin role — only super admin and admins set server-side, never by client
-export type AdminRole = 'super_admin' | 'admin' | 'none';
+// Admin role — only admin, moderator set server-side, never by client
+export type AdminRole = 'super_admin' | 'admin' | 'moderator' | 'none';
 
 // Account status — set only by admins
 export type AccountStatus = 'active' | 'suspended' | 'banned' | 'shadow_banned';
