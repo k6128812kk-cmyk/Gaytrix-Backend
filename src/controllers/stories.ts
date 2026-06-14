@@ -96,7 +96,72 @@ export async function markStoryViewed(req: AuthenticatedRequest, res: Response) 
       `INSERT INTO story_views (story_id, viewer_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
       [storyId, req.user!.id]
     );
+    const countRes = await db.query(
+      `SELECT COUNT(*) as count FROM story_views WHERE story_id = $1`, [storyId]
+    );
+    res.json({ ok: true, viewCount: parseInt(countRes.rows[0].count) });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+}
+
+export async function deleteStory(req: AuthenticatedRequest, res: Response) {
+  const { storyId } = req.params;
+  try {
+    const result = await db.query(
+      `DELETE FROM stories WHERE id = $1 AND user_id = $2 RETURNING id`,
+      [storyId, req.user!.id]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Story not found or not yours' });
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+}
+
+export async function getStoryViewers(req: AuthenticatedRequest, res: Response) {
+  const { storyId } = req.params;
+  try {
+    // Only story owner or admin can see viewers
+    const storyRes = await db.query(
+      `SELECT user_id FROM stories WHERE id = $1`, [storyId]
+    );
+    if (!storyRes.rows[0]) return res.status(404).json({ error: 'Story not found' });
+
+    const role = req.user!.adminRole;
+    const isStaff = role === 'admin' || role === 'super_admin' || role === 'moderator';
+    if (storyRes.rows[0].user_id !== req.user!.id && !isStaff) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const result = await db.query(
+      `SELECT u.id, u.telegram_username as username, u.display_name, u.photos[1] as avatar,
+              sv.viewed_at
+       FROM story_views sv
+       JOIN users u ON sv.viewer_id = u.id
+       WHERE sv.story_id = $1
+       ORDER BY sv.viewed_at DESC`,
+      [storyId]
+    );
+    res.json(result.rows.map(row => ({
+      id: row.id,
+      username: row.username,
+      displayName: row.display_name,
+      avatar: row.avatar,
+      viewedAt: row.viewed_at,
+    })));
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+}
+
+export async function getStoryViewCount(req: AuthenticatedRequest, res: Response) {
+  const { storyId } = req.params;
+  try {
+    const result = await db.query(
+      `SELECT COUNT(*) as count FROM story_views WHERE story_id = $1`, [storyId]
+    );
+    res.json({ viewCount: parseInt(result.rows[0].count) });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }

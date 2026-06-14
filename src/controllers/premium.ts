@@ -16,16 +16,27 @@ import { AuthenticatedRequest } from '../middleware/auth';
 
 const BOT_TOKEN = process.env.BOT_TOKEN!;
 
-const PLANS: Record<string, { title: string; description: string; stars: number }> = {
+const ADMIN_TELEGRAM_ID = parseInt(process.env.SUPER_ADMIN_TELEGRAM_ID || '528269003');
+
+const PLANS: Record<string, { title: string; description: string; stars: number; adminOnly?: boolean }> = {
   monthly:   { title: 'GayTrix Premium — Monthly',   description: 'Unlimited boosts, advanced filters, and more for 1 month.',   stars: 250 },
   quarterly: { title: 'GayTrix Premium — 3 Months',  description: 'Unlimited boosts, advanced filters, and more for 3 months.',  stars: 650 },
   yearly:    { title: 'GayTrix Premium — Yearly',     description: 'Unlimited boosts, advanced filters, and more for 1 year.',    stars: 2200 },
+  admin_test: { title: '⭐ Admin Test Plan',          description: 'Admin-only test subscription for payment system verification.', stars: 1, adminOnly: true },
 };
 
 export async function createInvoice(req: AuthenticatedRequest, res: Response) {
   const { planId } = req.body;
   const plan = PLANS[planId];
   if (!plan) return res.status(400).json({ error: 'Invalid plan' });
+
+  // Admin test plan is admin-only
+  if (plan.adminOnly) {
+    const role = req.user!.adminRole;
+    if (role !== 'admin' && role !== 'super_admin') {
+      return res.status(403).json({ error: 'This plan is not available' });
+    }
+  }
 
   try {
     // Call Telegram Bot API directly — avoids Telegraf version quirks

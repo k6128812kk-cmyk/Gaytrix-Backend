@@ -26,7 +26,7 @@ import {
   getGroups, createGroup, joinGroup, leaveGroup, deleteGroup,
   getGroupMessages, sendGroupMessage, getGroupMembers,
 } from '../controllers/groups';
-import { getStories, createStory, markStoryViewed } from '../controllers/stories';
+import { getStories, createStory, markStoryViewed, deleteStory, getStoryViewers } from '../controllers/stories';
 
 // ── Upload directories ────────────────────────────────────────────
 function makeUpload(subdir: string) {
@@ -122,6 +122,8 @@ router.get('/groups/:groupId/members', getGroupMembers);
 router.get('/stories', getStories);
 router.post('/stories', storyUpload.single('photo'), createStory);
 router.post('/stories/:storyId/view', markStoryViewed);
+router.delete('/stories/:storyId', deleteStory);
+router.get('/stories/:storyId/viewers', getStoryViewers);
 
 // ── Verification ──────────────────────────────────────────────────
 router.post('/verification/request', selfieUpload.single('selfie'), requestVerification);

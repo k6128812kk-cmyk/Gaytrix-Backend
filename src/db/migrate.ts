@@ -230,8 +230,21 @@ async function migrate() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_event_attendees_event ON event_attendees(event_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_group_messages_conv ON group_messages(conversation_id, sent_at)`);
 
+    await client.query('COMMIT');
+    console.log('✅ Migration complete — all tables created');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('❌ Migration failed:', err);
+    throw err;
+  } finally {
+    client.release();
+    await db.end();
+  }
+}
 
-    // ---- Stories ----
+migrate();
+
+// ---- Stories ----
     await client.query(`
       CREATE TABLE IF NOT EXISTS stories (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -281,21 +294,3 @@ async function migrate() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_stories_user ON stories(user_id, created_at DESC)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_groups_last_msg ON community_groups(last_message_at DESC)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_group_msgs ON community_group_messages(group_id, sent_at)`);
-
-    await client.query('COMMIT');
-    console.log('✅ Migration complete — all tables created');
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('❌ Migration failed:', err);
-    throw err;
-  } finally {
-    client.release();
-  }
-}
-
-export { migrate };
-
-// Standalone runner
-if (require.main === module) {
-  migrate().then(() => db.end()).catch((err) => { console.error(err); process.exit(1); });
-}

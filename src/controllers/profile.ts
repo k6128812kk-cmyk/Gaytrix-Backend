@@ -43,6 +43,7 @@ function formatUser(row: Record<string, unknown>, hideOnline = false) {
       hideExactLocation: row.hide_exact_location,
       invisibleMode: row.invisible_mode,
       hideOnlineStatus: row.hide_online_status,
+      privateProfile: row.private_profile,
     },
   };
 }
@@ -90,10 +91,11 @@ export async function updateMe(req: AuthenticatedRequest, res: Response) {
         hide_exact_location = COALESCE($15, hide_exact_location),
         invisible_mode = COALESCE($16, invisible_mode),
         hide_online_status = COALESCE($17, hide_online_status),
-        gender_identity = COALESCE($18, gender_identity),
-        interested_in = COALESCE($19, interested_in),
-        orientation = COALESCE($20, orientation)
-      WHERE id = $21
+        private_profile = COALESCE($18, private_profile),
+        gender_identity = COALESCE($19, gender_identity),
+        interested_in = COALESCE($20, interested_in),
+        orientation = COALESCE($21, orientation)
+      WHERE id = $22
       RETURNING *`,
       [
         displayName || null,
@@ -113,6 +115,7 @@ export async function updateMe(req: AuthenticatedRequest, res: Response) {
         privacy?.hideExactLocation ?? null,
         privacy?.invisibleMode ?? null,
         privacy?.hideOnlineStatus ?? null,
+        privacy?.privateProfile ?? null,
         genderIdentity || null,
         interestedIn || null,
         orientation || null,
