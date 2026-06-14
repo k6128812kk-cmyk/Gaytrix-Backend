@@ -8,6 +8,10 @@ import { getNearby, getExplore } from '../controllers/discovery';
 import { getConversations, getMessages, sendMessage, startConversation, sendPhotoMessage } from '../controllers/messages';
 import { getLocations, createLocation, upvoteLocation, reportLocation } from '../controllers/map';
 import {
+  getEvents, createEvent, joinEvent, leaveEvent, deleteEvent, updateEvent,
+  getEventAttendees, getGroupMessages, sendGroupMessage, reportEvent,
+} from '../controllers/events';
+import {
   requestVerification, getVerificationQueue,
   approveVerification, rejectVerification,
 } from '../controllers/verification';
@@ -18,17 +22,15 @@ import {
   getModerators, promoteModerator, demoteModerator,
 } from '../controllers/admin';
 
-// Memory storage — photos stored in DB as base64, no disk needed
 const memoryUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_, file, cb) => {
     if (file.mimetype.startsWith('image/')) cb(null, true);
     else cb(new Error('Images only'));
   },
 });
 
-// Selfie storage still uses disk (admin-only view, not public)
 import path from 'path';
 import { v4 as uuid } from 'uuid';
 import fs from 'fs';
@@ -48,18 +50,13 @@ const selfieUpload = multer({
 
 const router = Router();
 
-// ------------------------------------------------------------------
-// Photo serving — public, no auth needed (photos are UUID-based so
-// they are unguessable without knowing the URL)
-// ------------------------------------------------------------------
+// Photo serving — public
 router.get('/photos/:photoId', servePhoto);
 
-// All remaining routes require Telegram authentication
+// All remaining routes require auth
 router.use(authMiddleware);
 
-// ------------------------------------------------------------------
 // Profile
-// ------------------------------------------------------------------
 router.get('/profile/me', getMe);
 router.patch('/profile/me', updateMe);
 router.get('/profiles/:id', getProfile);
@@ -68,49 +65,48 @@ router.post('/users/:id/report', reportUser);
 router.post('/users/:id/block', blockUser);
 router.delete('/users/:id/block', unblockUser);
 
-// ------------------------------------------------------------------
-// Photo upload — stores in DB, returns permanent URL
-// ------------------------------------------------------------------
+// Photo upload
 router.post('/profile/photos', memoryUpload.single('photo'), uploadPhoto as any);
 router.delete('/profile/photos/:photoId', deletePhoto as any);
 
-// ------------------------------------------------------------------
 // Premium
-// ------------------------------------------------------------------
 router.post('/premium/create-invoice', createInvoice);
 
-// ------------------------------------------------------------------
 // Discovery
-// ------------------------------------------------------------------
 router.get('/discovery/nearby', getNearby);
 router.get('/discovery/explore/:section', getExplore);
 
-// ------------------------------------------------------------------
 // Messages
-// ------------------------------------------------------------------
 router.get('/messages/conversations', getConversations);
 router.get('/messages/conversations/:conversationId', getMessages);
 router.post('/messages/conversations/:conversationId', sendMessage);
 router.post('/messages/conversations/:conversationId/photo', memoryUpload.single('photo'), sendPhotoMessage as any);
 router.post('/messages/start', startConversation);
 
-// ------------------------------------------------------------------
-// Map
-// ------------------------------------------------------------------
+// Map locations
 router.get('/map/locations', getLocations);
 router.post('/map/locations', createLocation);
 router.post('/map/locations/:locationId/upvote', upvoteLocation);
 router.post('/map/locations/:locationId/report', reportLocation);
 
-// ------------------------------------------------------------------
+// Map events
+router.get('/events', getEvents);
+router.post('/events', createEvent);
+router.post('/events/:eventId/join', joinEvent);
+router.post('/events/:eventId/leave', leaveEvent);
+router.delete('/events/:eventId', deleteEvent);
+router.patch('/events/:eventId', updateEvent);
+router.get('/events/:eventId/attendees', getEventAttendees);
+router.post('/events/:eventId/report', reportEvent);
+
+// Group chat (event chats)
+router.get('/group-chat/:conversationId/messages', getGroupMessages);
+router.post('/group-chat/:conversationId/messages', sendGroupMessage);
+
 // Verification
-// ------------------------------------------------------------------
 router.post('/verification/request', selfieUpload.single('selfie'), requestVerification);
 
-// ------------------------------------------------------------------
-// Admin routes — adminMiddleware allows admin + moderator
-// adminOnlyMiddleware allows only admin
-// ------------------------------------------------------------------
+// Admin routes
 router.get('/admin/stats', adminMiddleware, getStats);
 router.get('/admin/users', adminOnlyMiddleware, getUsers);
 router.post('/admin/users/:userId/ban', adminMiddleware, banUser);
@@ -128,7 +124,6 @@ router.get('/admin/reports', adminMiddleware, getReports);
 router.post('/admin/reports/:reportId/dismiss', adminMiddleware, dismissReport);
 router.get('/admin/audit-log', adminMiddleware, getAuditLog);
 router.post('/admin/announcements', adminOnlyMiddleware, sendAnnouncement);
-// Moderator management — admin-only (not moderators themselves)
 router.get('/admin/moderators', adminOnlyMiddleware, getModerators);
 router.post('/admin/users/:userId/promote-moderator', adminOnlyMiddleware, promoteModerator);
 router.post('/admin/users/:userId/demote-moderator', adminOnlyMiddleware, demoteModerator);

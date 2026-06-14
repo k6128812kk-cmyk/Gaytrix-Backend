@@ -1,11 +1,5 @@
 import { db, testConnection } from './pool';
 
-// ==========================================================================
-// Database migration — runs once to create all tables.
-// Run with: npm run db:migrate
-// Safe to re-run (uses IF NOT EXISTS).
-// ==========================================================================
-
 async function migrate() {
   await testConnection();
   const client = await db.connect();
@@ -13,10 +7,7 @@ async function migrate() {
   try {
     await client.query('BEGIN');
 
-    // ------------------------------------------------------------------
-    // Users table — one row per real Telegram account
-    // telegramId is the immutable unique key — one account = one profile
-    // ------------------------------------------------------------------
+    // Users table
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -49,13 +40,21 @@ async function migrate() {
         private_profile BOOLEAN NOT NULL DEFAULT FALSE,
         location_lat DOUBLE PRECISION,
         location_lng DOUBLE PRECISION,
-        reports_count INTEGER NOT NULL DEFAULT 0
+        reports_count INTEGER NOT NULL DEFAULT 0,
+        gender_identity TEXT NOT NULL DEFAULT '',
+        interested_in TEXT NOT NULL DEFAULT 'everyone',
+        orientation TEXT NOT NULL DEFAULT ''
       )
     `);
 
-    // ------------------------------------------------------------------
-    // Verification requests — selfie URLs stored here, never on users table
-    // ------------------------------------------------------------------
+    // Add new columns to existing users table if they don't exist
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS gender_identity TEXT NOT NULL DEFAULT ''`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS interested_in TEXT NOT NULL DEFAULT 'everyone'`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS orientation TEXT NOT NULL DEFAULT ''`);
+
+    // Rename super_admin → admin for existing rows
+    await client.query(`UPDATE users SET admin_role = 'admin' WHERE admin_role = 'super_admin'`);
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS verification_requests (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -69,9 +68,6 @@ async function migrate() {
       )
     `);
 
-    // ------------------------------------------------------------------
-    // User reports
-    // ------------------------------------------------------------------
     await client.query(`
       CREATE TABLE IF NOT EXISTS user_reports (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -84,9 +80,6 @@ async function migrate() {
       )
     `);
 
-    // ------------------------------------------------------------------
-    // User blocks
-    // ------------------------------------------------------------------
     await client.query(`
       CREATE TABLE IF NOT EXISTS user_blocks (
         blocker_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -96,9 +89,6 @@ async function migrate() {
       )
     `);
 
-    // ------------------------------------------------------------------
-    // Conversations and messages
-    // ------------------------------------------------------------------
     await client.query(`
       CREATE TABLE IF NOT EXISTS conversations (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -124,9 +114,6 @@ async function migrate() {
       )
     `);
 
-    // ------------------------------------------------------------------
-    // Admin audit log
-    // ------------------------------------------------------------------
     await client.query(`
       CREATE TABLE IF NOT EXISTS admin_actions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -138,9 +125,6 @@ async function migrate() {
       )
     `);
 
-    // ------------------------------------------------------------------
-    // Map locations
-    // ------------------------------------------------------------------
     await client.query(`
       CREATE TABLE IF NOT EXISTS map_locations (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -157,9 +141,68 @@ async function migrate() {
       )
     `);
 
-    // ------------------------------------------------------------------
-    // Sessions (JWT revocation list for banned users)
-    // ------------------------------------------------------------------
+    // Map Events table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS map_events (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT 'social_meetup',
+        lat DOUBLE PRECISION NOT NULL,
+        lng DOUBLE PRECISION NOT NULL,
+        starts_at TIMESTAMPTZ NOT NULL,
+        ends_at TIMESTAMPTZ,
+        max_attendees INTEGER,
+        created_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        conversation_id UUID REFERENCES conversations(id),
+        status TEXT NOT NULL DEFAULT 'active',
+        reports_count INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Event attendees
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS event_attendees (
+        event_id UUID NOT NULL REFERENCES map_events(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (event_id, user_id)
+      )
+    `);
+
+    // Event group conversations
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS group_conversations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        event_id UUID REFERENCES map_events(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        created_by UUID NOT NULL REFERENCES users(id),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS group_members (
+        conversation_id UUID NOT NULL REFERENCES group_conversations(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (conversation_id, user_id)
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS group_messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        conversation_id UUID NOT NULL REFERENCES group_conversations(id) ON DELETE CASCADE,
+        sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        content_type TEXT NOT NULL DEFAULT 'text',
+        text TEXT,
+        media_url TEXT,
+        sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS revoked_sessions (
         telegram_id BIGINT PRIMARY KEY,
@@ -167,9 +210,6 @@ async function migrate() {
       )
     `);
 
-    // ------------------------------------------------------------------
-    // Photos — stored as base64 data URLs in DB (no filesystem dependency)
-    // ------------------------------------------------------------------
     await client.query(`
       CREATE TABLE IF NOT EXISTS photos (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -178,15 +218,17 @@ async function migrate() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_photos_owner ON photos(owner_id)`);
 
-    // Indexes for performance
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_photos_owner ON photos(owner_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_users_account_status ON users(account_status)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_users_last_active ON users(last_active_at DESC)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, sent_at)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_verification_status ON verification_requests(status)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_reports_status ON user_reports(status)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_map_events_starts ON map_events(starts_at)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_event_attendees_event ON event_attendees(event_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_group_messages_conv ON group_messages(conversation_id, sent_at)`);
 
     await client.query('COMMIT');
     console.log('✅ Migration complete — all tables created');
@@ -201,11 +243,3 @@ async function migrate() {
 }
 
 migrate();
-
-// Run additional migrations for role system update
-async function migrateRoles() {
-  const { db } = await import('./pool');
-  // Rename super_admin to admin
-  await db.query(`UPDATE users SET admin_role = 'admin' WHERE admin_role = 'super_admin'`);
-  console.log('✅ Role migration: super_admin → admin complete');
-}
