@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { PageHeader } from '@/components/PageHeader';
 import { Avatar } from '@/components/Avatar';
-import { Badge } from '@/components/Badge';
 import { chatService } from '@/api/services';
 import { wsClient } from '@/hooks/useGlobalWs';
 import type { Conversation } from '@/types';
@@ -31,7 +30,7 @@ export function ChatListPage() {
 
   // Listen for new incoming messages to update unread counts live
   useEffect(() => {
-    const handler = (msg: Record<string, unknown>) => {
+    const handler = (_msg: Record<string, unknown>) => {
       const m = msg.message as { conversationId: string; senderId: string };
       if (!m?.conversationId) return;
       setConversations(prev => prev.map(c => {
@@ -47,7 +46,7 @@ export function ChatListPage() {
 
   // When we read a conversation, clear its local unread count
   useEffect(() => {
-    const handler = (msg: Record<string, unknown>) => {
+    const handler = (_msg: Record<string, unknown>) => {
       // read_receipt means the other person read our messages (no unread change here)
     };
     wsClient.addHandler('read_receipt', handler);

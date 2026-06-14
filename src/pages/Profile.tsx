@@ -17,7 +17,7 @@ import styles from './Profile.module.css';
 
 export function ProfilePage() {
   const navigate = useNavigate();
-  const { profile, isSuperAdmin, isAdmin } = useSessionStore();
+  const { profile, isAdmin, isModerator } = useSessionStore();
 
   if (!profile) return null;
 
@@ -46,8 +46,8 @@ export function ProfilePage() {
             <p className={styles.username}>@{profile.telegramUsername}</p>
             <p className={styles.telegramId}>Telegram ID: {profile.telegramId}</p>
             <div className={styles.badgeRow}>
-              {isSuperAdmin() && <Badge variant="gold">👑 Super Admin</Badge>}
-              {!isSuperAdmin() && isAdmin() && <Badge variant="gold">Admin</Badge>}
+              {isAdmin() && <Badge variant="gold">👑 Admin</Badge>}
+              {!isAdmin() && isModerator() && <Badge variant="gold">🛡 Moderator</Badge>}
               {profile.verification === 'verified' && !isAdmin() && <Badge variant="gold">Verified</Badge>}
               {profile.membership === 'premium' && <Badge variant="premium">Premium</Badge>}
             </div>
@@ -77,7 +77,7 @@ export function ProfilePage() {
           {isAdmin() && (
             <MenuItem
               icon={ShieldAlert}
-              label={isSuperAdmin() ? '👑 Super Admin Panel' : 'Admin Panel'}
+              label={isAdmin() ? '👑 Admin Panel' : '🛡 Moderator Panel'}
               sublabel="Manage users, reports, verification"
               onClick={() => navigate('/admin')}
               accent

@@ -2,12 +2,12 @@ import { api } from './client';
 import type {
   UserProfile, MapLocation, MapEvent, EventAttendee, GroupMessage,
   Conversation, ChatMessage,
-  CommunityEvent, DiscoveryFilters, VerificationRequest,
+  DiscoveryFilters, VerificationRequest,
   UserReport, AdminAction, PlatformStats,
 } from '@/types';
 import {
   currentUser, mockProfiles, mockLocations, mockConversations,
-  mockMessages, mockEvents, mockVerificationRequests, mockReports,
+  mockMessages, mockVerificationRequests, mockReports,
   mockAdminActions, mockStats,
 } from '@/mock/data';
 

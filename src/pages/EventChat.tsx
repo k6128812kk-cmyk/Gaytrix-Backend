@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Send, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
@@ -20,7 +20,7 @@ export function EventChatPage() {
   const [messages, setMessages] = useState<GroupMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(true);
-  const [groupName, setGroupName] = useState('Event Chat');
+  const [groupName] = useState('Event Chat');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Use global WS

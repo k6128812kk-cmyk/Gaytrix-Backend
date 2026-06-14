@@ -8,13 +8,14 @@ import styles from './Button.module.css';
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
   fullWidth?: boolean;
+  size?: 'sm' | 'md' | 'lg';
   children: ReactNode;
 }
 
-export function Button({ variant = 'primary', fullWidth = false, className = '', children, ...rest }: ButtonProps) {
+export function Button({ variant = 'primary', fullWidth = false, size = 'md', className = '', children, ...rest }: ButtonProps) {
   return (
     <button
-      className={`${styles.button} ${styles[variant]} ${fullWidth ? styles.fullWidth : ''} ${className}`}
+      className={`${styles.button} ${styles[variant]} ${styles[`size_${size}`]} ${fullWidth ? styles.fullWidth : ''} ${className}`}
       {...rest}
     >
       {children}

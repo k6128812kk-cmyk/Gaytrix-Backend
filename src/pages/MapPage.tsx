@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ThumbsUp, Flag, X, MapPin, Calendar, Users, MessageSquare, Trash2, Pencil } from 'lucide-react';
-import { format, formatDistanceToNow } from 'date-fns';
+import { Plus, ThumbsUp, Flag, X, MapPin, Calendar, Users, MessageSquare, Trash2 } from 'lucide-react';
+import { format } from 'date-fns';
 import { PageHeader } from '@/components/PageHeader';
 import { Chip } from '@/components/Chip';
 import { Button } from '@/components/Button';
-import { Avatar } from '@/components/Avatar';
 import { mapService, eventService } from '@/api/services';
 import { useSessionStore } from '@/context/sessionStore';
 import type { MapLocation, MapEvent, LocationCategory } from '@/types';
