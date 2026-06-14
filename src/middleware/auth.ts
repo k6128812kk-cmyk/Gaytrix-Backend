@@ -5,18 +5,15 @@ import { db } from '../db/pool';
 // ==========================================================================
 // Telegram initData verification — the ONLY way a user proves identity.
 //
-// How it works:
-// 1. Telegram signs initData with HMAC-SHA256 using a key derived from
-//    the bot token. The signature is in the "hash" field of initData.
-// 2. We recompute the expected hash and compare — if it doesn't match,
-//    the request is rejected. No JWT, no session cookie needed.
-// 3. We then look up (or create) the user in the database using telegramId.
-// 4. Admin role is assigned in the DB based on telegramId — never by client.
+// Role system:
+//   - "admin"     : @k54lid (telegramId 528269003) — full access
+//   - "moderator" : can review verifications, reports, suspend/ban users
+//   - "none"      : regular user
 //
-// Super admin: telegramId 528269003 (@k54lid) — hard-enforced here and in DB.
+// Note: "super_admin" in DB is treated as "admin" for all purposes.
 // ==========================================================================
 
-const SUPER_ADMIN_TELEGRAM_ID = parseInt(process.env.SUPER_ADMIN_TELEGRAM_ID || '528269003');
+const ADMIN_TELEGRAM_ID = parseInt(process.env.SUPER_ADMIN_TELEGRAM_ID || '528269003');
 const BOT_TOKEN = process.env.BOT_TOKEN!;
 
 export interface AuthenticatedRequest extends Request {
@@ -34,7 +31,6 @@ function verifyTelegramInitData(initData: string): Record<string, string> | null
   const hash = params.get('hash');
   if (!hash) return null;
 
-  // Build the data-check string: sorted key=value pairs (excluding hash)
   const dataCheckArr: string[] = [];
   params.forEach((value, key) => {
     if (key !== 'hash') dataCheckArr.push(`${key}=${value}`);
@@ -42,13 +38,11 @@ function verifyTelegramInitData(initData: string): Record<string, string> | null
   dataCheckArr.sort();
   const dataCheckString = dataCheckArr.join('\n');
 
-  // HMAC-SHA256 with key = HMAC-SHA256("WebAppData", botToken)
   const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
   const expectedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
   if (expectedHash !== hash) return null;
 
-  // Check initData is not expired (max 1 hour)
   const authDate = parseInt(params.get('auth_date') || '0');
   const now = Math.floor(Date.now() / 1000);
   if (now - authDate > 3600) return null;
@@ -61,14 +55,12 @@ function verifyTelegramInitData(initData: string): Record<string, string> | null
 export async function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   const initData = req.headers['x-telegram-init-data'] as string;
 
-  // Dev mode: allow requests without initData only in development
   if (!initData && process.env.NODE_ENV === 'development') {
-    // Simulate super admin for local testing
     req.user = {
-      id: 'dev-super-admin',
-      telegramId: SUPER_ADMIN_TELEGRAM_ID,
+      id: 'dev-admin',
+      telegramId: ADMIN_TELEGRAM_ID,
       telegramUsername: 'k54lid',
-      adminRole: 'super_admin',
+      adminRole: 'admin',
       accountStatus: 'active',
     };
     return next();
@@ -95,9 +87,10 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
   }
 
   try {
-    // Upsert user — creates on first login, updates username/last_active on subsequent logins
-    // Admin role is set based on telegramId — never from client input
-    const adminRole = telegramUser.id === SUPER_ADMIN_TELEGRAM_ID ? 'super_admin' : 'none';
+    // Admin role: if this is the admin telegram ID, always set to 'admin'
+    // For existing users with super_admin in DB, treat as admin
+    // For moderators, keep their moderator role
+    const isAdminById = telegramUser.id === ADMIN_TELEGRAM_ID;
 
     const result = await db.query(
       `INSERT INTO users (telegram_id, telegram_username, admin_role, last_active_at, is_online)
@@ -106,27 +99,25 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
          telegram_username = EXCLUDED.telegram_username,
          last_active_at = NOW(),
          is_online = TRUE,
-         -- Only upgrade to super_admin, never downgrade
          admin_role = CASE
-           WHEN users.telegram_id = $4 THEN 'super_admin'
+           WHEN users.telegram_id = $4 THEN 'admin'
+           WHEN users.admin_role = 'super_admin' THEN 'admin'
            ELSE users.admin_role
          END
        RETURNING id, telegram_id, telegram_username, admin_role, account_status`,
       [
         telegramUser.id,
         telegramUser.username || '',
-        adminRole,
-        SUPER_ADMIN_TELEGRAM_ID,
+        isAdminById ? 'admin' : 'none',
+        ADMIN_TELEGRAM_ID,
       ]
     );
 
     const user = result.rows[0];
 
-    // Block banned users from accessing the API
     if (user.account_status === 'banned') {
       return res.status(403).json({ error: 'Account banned', accountStatus: 'banned' });
     }
-
     if (user.account_status === 'suspended') {
       return res.status(403).json({ error: 'Account suspended', accountStatus: 'suspended' });
     }
@@ -146,19 +137,29 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
   }
 }
 
-// Admin-only middleware — must come after authMiddleware
+// Admin or moderator access
 export function adminMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   const role = req.user?.adminRole;
-  if (role !== 'super_admin' && role !== 'admin') {
+  if (role !== 'admin' && role !== 'super_admin' && role !== 'moderator') {
     return res.status(403).json({ error: 'Admin access required' });
   }
   next();
 }
 
-// Super admin only
+// Admin-only (not moderator)
+export function adminOnlyMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  const role = req.user?.adminRole;
+  if (role !== 'admin' && role !== 'super_admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  next();
+}
+
+// Super admin only (legacy, same as admin)
 export function superAdminMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  if (req.user?.adminRole !== 'super_admin') {
-    return res.status(403).json({ error: 'Super admin access required' });
+  const role = req.user?.adminRole;
+  if (role !== 'admin' && role !== 'super_admin') {
+    return res.status(403).json({ error: 'Admin access required' });
   }
   next();
 }

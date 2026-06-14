@@ -201,3 +201,11 @@ async function migrate() {
 }
 
 migrate();
+
+// Run additional migrations for role system update
+async function migrateRoles() {
+  const { db } = await import('./pool');
+  // Rename super_admin to admin
+  await db.query(`UPDATE users SET admin_role = 'admin' WHERE admin_role = 'super_admin'`);
+  console.log('✅ Role migration: super_admin → admin complete');
+}

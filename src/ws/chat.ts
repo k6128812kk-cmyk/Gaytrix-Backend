@@ -119,11 +119,34 @@ export function setupWebSocketServer(server: Server) {
             : conv.rows[0].user_a;
 
           const recipientSockets = connections.get(recipientId);
-          if (recipientSockets) {
+          if (recipientSockets && recipientSockets.size > 0) {
             const payload = JSON.stringify({ type: 'message', message });
             recipientSockets.forEach(sock => {
               if (sock.readyState === WebSocket.OPEN) sock.send(payload);
             });
+          } else {
+            // Recipient is offline — send Telegram notification
+            // Only if they have no unread messages already (avoid spam)
+            try {
+              const recipientData = await db.query(
+                `SELECT u.telegram_id,
+                  (SELECT COUNT(*) FROM messages
+                   WHERE conversation_id = $2 AND sender_id != $3 AND read_at IS NULL) as unread_before
+                 FROM users u WHERE u.id = $1`,
+                [recipientId, conversationId, recipientId]
+              );
+              // unread_before is count BEFORE this message, so if 0 it's the first unread
+              const unreadBefore = parseInt(recipientData.rows[0]?.unread_before ?? '1');
+              if (recipientData.rows[0] && unreadBefore === 0) {
+                const { sendNotification } = await import('../bot/bot');
+                await sendNotification(
+                  recipientData.rows[0].telegram_id,
+                  '💬 You have a new message on GayTrix.'
+                );
+              }
+            } catch (notifErr) {
+              console.error('Notification error:', notifErr);
+            }
           }
         }
 

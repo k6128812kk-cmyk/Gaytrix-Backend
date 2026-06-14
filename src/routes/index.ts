@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { authMiddleware, adminMiddleware } from '../middleware/auth';
+import { authMiddleware, adminMiddleware, adminOnlyMiddleware } from '../middleware/auth';
 import { getMe, updateMe, getProfile, reportUser, blockUser, getBlockedUsers, unblockUser } from '../controllers/profile';
 import { uploadPhoto, servePhoto, deletePhoto } from '../controllers/photos';
 import { createInvoice } from '../controllers/premium';
@@ -15,6 +15,7 @@ import {
   getStats, getUsers, banUser, suspendUser, unsuspendUser,
   removeUser, getReports, dismissReport, getAuditLog, sendAnnouncement,
   revokePremium, grantPremium, removeVerification, grantVerification,
+  getModerators, promoteModerator, demoteModerator,
 } from '../controllers/admin';
 
 // Memory storage — photos stored in DB as base64, no disk needed
@@ -107,24 +108,29 @@ router.post('/map/locations/:locationId/report', reportLocation);
 router.post('/verification/request', selfieUpload.single('selfie'), requestVerification);
 
 // ------------------------------------------------------------------
-// Admin routes
+// Admin routes — adminMiddleware allows admin + moderator
+// adminOnlyMiddleware allows only admin
 // ------------------------------------------------------------------
 router.get('/admin/stats', adminMiddleware, getStats);
-router.get('/admin/users', adminMiddleware, getUsers);
+router.get('/admin/users', adminOnlyMiddleware, getUsers);
 router.post('/admin/users/:userId/ban', adminMiddleware, banUser);
 router.post('/admin/users/:userId/suspend', adminMiddleware, suspendUser);
 router.post('/admin/users/:userId/unsuspend', adminMiddleware, unsuspendUser);
-router.post('/admin/users/:userId/revoke-premium', adminMiddleware, revokePremium);
-router.post('/admin/users/:userId/grant-premium', adminMiddleware, grantPremium);
+router.post('/admin/users/:userId/revoke-premium', adminOnlyMiddleware, revokePremium);
+router.post('/admin/users/:userId/grant-premium', adminOnlyMiddleware, grantPremium);
 router.post('/admin/users/:userId/remove-verification', adminMiddleware, removeVerification);
 router.post('/admin/users/:userId/grant-verification', adminMiddleware, grantVerification);
-router.delete('/admin/users/:userId', adminMiddleware, removeUser);
+router.delete('/admin/users/:userId', adminOnlyMiddleware, removeUser);
 router.get('/admin/verification/queue', adminMiddleware, getVerificationQueue);
 router.post('/admin/verification/:requestId/approve', adminMiddleware, approveVerification);
 router.post('/admin/verification/:requestId/reject', adminMiddleware, rejectVerification);
 router.get('/admin/reports', adminMiddleware, getReports);
 router.post('/admin/reports/:reportId/dismiss', adminMiddleware, dismissReport);
 router.get('/admin/audit-log', adminMiddleware, getAuditLog);
-router.post('/admin/announcements', adminMiddleware, sendAnnouncement);
+router.post('/admin/announcements', adminOnlyMiddleware, sendAnnouncement);
+// Moderator management — admin-only (not moderators themselves)
+router.get('/admin/moderators', adminOnlyMiddleware, getModerators);
+router.post('/admin/users/:userId/promote-moderator', adminOnlyMiddleware, promoteModerator);
+router.post('/admin/users/:userId/demote-moderator', adminOnlyMiddleware, demoteModerator);
 
 export default router;

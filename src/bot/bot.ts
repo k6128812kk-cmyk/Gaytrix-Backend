@@ -101,12 +101,24 @@ export async function sendBroadcast(telegramIds: number[], message: string) {
 }
 
 export async function startBot(useWebhook = false, webhookUrl?: string) {
+  // Set the menu button to always show the Mini App launch button
+  try {
+    await bot.telegram.setChatMenuButton({
+      menuButton: {
+        type: 'web_app',
+        text: '🌈 Open GayTrix',
+        web_app: { url: MINI_APP_URL },
+      },
+    });
+    console.log('✅ Bot menu button set');
+  } catch (err) {
+    console.error('Failed to set menu button:', err);
+  }
+
   if (useWebhook && webhookUrl) {
-    // Production: use webhook
     await bot.telegram.setWebhook(`${webhookUrl}/bot/webhook`);
     console.log('✅ Bot webhook set');
   } else {
-    // Development: use polling
     bot.launch();
     console.log('✅ Bot started (polling)');
   }

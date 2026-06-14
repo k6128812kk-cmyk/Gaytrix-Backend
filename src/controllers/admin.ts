@@ -361,3 +361,74 @@ export async function sendAnnouncement(req: AuthenticatedRequest, res: Response)
     res.status(500).json({ error: 'Server error' });
   }
 }
+
+
+// ==========================================================================
+// Moderator management — admin-only endpoints
+// ==========================================================================
+
+export async function getModerators(req: AuthenticatedRequest, res: Response) {
+  try {
+    const result = await db.query(
+      `SELECT id, telegram_id, telegram_username, display_name, photos,
+              admin_role, account_status, registered_at, last_active_at
+       FROM users WHERE admin_role = 'moderator'
+       ORDER BY registered_at DESC`
+    );
+    res.json(result.rows.map(row => ({
+      id: row.id,
+      telegramId: row.telegram_id,
+      telegramUsername: row.telegram_username,
+      displayName: row.display_name,
+      photos: row.photos,
+      adminRole: row.admin_role,
+      accountStatus: row.account_status,
+      registeredAt: row.registered_at,
+      lastActiveAt: row.last_active_at,
+    })));
+  } catch (err) {
+    console.error('getModerators error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+}
+
+export async function promoteModerator(req: AuthenticatedRequest, res: Response) {
+  const { userId } = req.params;
+  // Cannot promote the admin account via this endpoint (it's already admin)
+  if (await isProtected(userId)) return res.status(403).json({ error: 'Cannot modify this account' });
+  try {
+    const result = await db.query(
+      `UPDATE users SET admin_role = 'moderator' WHERE id = $1 RETURNING id`,
+      [userId]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'User not found' });
+    await db.query(
+      `INSERT INTO admin_actions (admin_id, target_id, action, reason) VALUES ($1, $2, 'promote_moderator', 'Promoted to moderator')`,
+      [req.user!.id, userId]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('promoteModerator error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+}
+
+export async function demoteModerator(req: AuthenticatedRequest, res: Response) {
+  const { userId } = req.params;
+  if (await isProtected(userId)) return res.status(403).json({ error: 'Cannot modify this account' });
+  try {
+    const result = await db.query(
+      `UPDATE users SET admin_role = 'none' WHERE id = $1 AND admin_role = 'moderator' RETURNING id`,
+      [userId]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'User not found or not a moderator' });
+    await db.query(
+      `INSERT INTO admin_actions (admin_id, target_id, action, reason) VALUES ($1, $2, 'demote_moderator', 'Removed moderator status')`,
+      [req.user!.id, userId]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('demoteModerator error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+}
