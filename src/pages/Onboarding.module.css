@@ -1,0 +1,141 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding-top: var(--safe-top);
+  background: var(--color-bg);
+}
+
+.progress {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-4);
+}
+
+.progressSegment {
+  flex: 1;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+}
+
+.progressActive {
+  background: var(--color-accent);
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 var(--space-5);
+}
+
+.title {
+  font-size: 26px;
+  font-weight: 800;
+  margin-bottom: var(--space-2);
+}
+
+.subtitle {
+  color: var(--color-text-muted);
+  font-size: 14px;
+  margin-bottom: var(--space-5);
+}
+
+.photoGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+}
+
+.photoSlot,
+.photoSlotEmpty {
+  aspect-ratio: 1;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.photoSlot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photoSlotEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  background: var(--color-surface);
+  border: 1px dashed var(--color-border);
+  color: var(--color-text-faint);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.fieldRow {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.fieldRow .field {
+  flex: 1;
+}
+
+.field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.input,
+.textarea {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  font-size: 15px;
+  color: var(--color-text);
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--color-text-faint);
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: var(--color-secondary);
+}
+
+.textarea {
+  resize: none;
+  width: 100%;
+  line-height: 1.5;
+}
+
+.charCount {
+  text-align: right;
+  font-size: 12px;
+  color: var(--color-text-faint);
+  font-family: var(--font-mono);
+  margin-top: var(--space-1);
+}
+
+.chipWrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.footer {
+  padding: var(--space-4) var(--space-5);
+  padding-bottom: calc(var(--space-4) + var(--safe-bottom));
+}

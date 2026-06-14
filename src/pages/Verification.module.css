@@ -1,0 +1,143 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.content {
+  flex: 1;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.banner {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+}
+
+.banner_gold {
+  background: var(--color-gold-soft);
+  color: var(--color-gold);
+}
+
+.banner_neutral {
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+}
+
+.banner_danger {
+  background: rgba(255, 92, 92, 0.1);
+  color: var(--color-danger);
+}
+
+.bannerTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.bannerBody {
+  font-size: 13px;
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+.infoSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.heading {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.body {
+  font-size: 14px;
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+.privacyNote {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-secondary-soft);
+  color: var(--color-secondary);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.privacyNote svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.privacyNote p {
+  color: var(--color-text-muted);
+}
+
+.uploadSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.uploadBox {
+  aspect-ratio: 1;
+  max-width: 220px;
+  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  background: var(--color-surface);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-faint);
+  font-size: 13px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.requirements {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 13px;
+  color: var(--color-text-muted);
+  padding-left: var(--space-2);
+}
+
+.requirements li {
+  position: relative;
+  padding-left: var(--space-3);
+}
+
+.requirements li::before {
+  content: '·';
+  position: absolute;
+  left: 0;
+  color: var(--color-secondary);
+}
+
+.footer {
+  padding: var(--space-4);
+  padding-bottom: calc(var(--space-4) + var(--safe-bottom));
+  border-top: 1px solid var(--color-border-subtle);
+}

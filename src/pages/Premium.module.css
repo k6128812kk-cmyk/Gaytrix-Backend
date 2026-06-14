@@ -1,0 +1,163 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.content {
+  flex: 1;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-2);
+  padding: var(--space-5) 0;
+}
+
+.heroIcon {
+  color: var(--color-gold);
+}
+
+.heroTitle {
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.heroSubtitle {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.featureList {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.featureRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  font-size: 14px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.featureRow:last-child {
+  border-bottom: none;
+}
+
+.featureIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.checkIcon {
+  margin-left: auto;
+  color: var(--color-success);
+}
+
+.plans {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.plan {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-subtle);
+}
+
+.planSelected {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.planInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.planLabel {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.planBadge {
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--color-secondary);
+  background: var(--color-secondary-soft);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+}
+
+.planPrice {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.starIcon {
+  color: var(--color-gold);
+}
+
+.planPeriod {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-text-faint);
+}
+
+.footer {
+  padding: var(--space-4);
+  padding-bottom: calc(var(--space-4) + var(--safe-bottom));
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.activeBanner {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--color-gold-soft);
+  color: var(--color-gold);
+  border-radius: var(--radius-lg);
+}
+
+.activeTitle {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.activeBody {
+  font-size: 13px;
+  margin-top: 4px;
+  line-height: 1.5;
+}

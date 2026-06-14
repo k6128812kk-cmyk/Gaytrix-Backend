@@ -1,0 +1,152 @@
+/* ==========================================================================
+   GayTrix Design Tokens
+   Palette: deep charcoal-violet base, coral-pink primary accent,
+            teal-cyan secondary accent, gold reserved for verification only.
+   ========================================================================== */
+
+:root {
+  /* Surfaces */
+  --color-bg: #16141f;
+  --color-bg-elevated: #1d1a29;
+  --color-surface: #221f2e;
+  --color-surface-hover: #2a2638;
+  --color-border: #322e42;
+  --color-border-subtle: #2a2738;
+
+  /* Text */
+  --color-text: #f5f3f8;
+  --color-text-muted: #a8a3bd;
+  --color-text-faint: #6f6a87;
+
+  /* Accents */
+  --color-accent: #ff6e7f;          /* coral-pink — primary actions, likes */
+  --color-accent-soft: #ff6e7f26;
+  --color-secondary: #5ee6d0;       /* teal-cyan — links, online presence */
+  --color-secondary-soft: #5ee6d026;
+  --color-gold: #ffc857;            /* verification only */
+  --color-gold-soft: #ffc85726;
+  --color-danger: #ff5c5c;
+  --color-success: #5ee6a8;
+
+  /* Presence ring gradients */
+  --ring-online: linear-gradient(135deg, #5ee6d0, #4fb8ff);
+  --ring-verified: linear-gradient(135deg, #ffc857, #ff9d5c);
+  --ring-premium: linear-gradient(135deg, #ff6e7f, #c084fc);
+  --ring-offline: #3a3650;
+
+  /* Typography */
+  --font-display: 'Sora', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* Shadows */
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-pop: 0 4px 16px rgba(255, 110, 127, 0.25);
+
+  /* Layout */
+  --tabbar-height: 64px;
+  --header-height: 56px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+p {
+  margin: 0;
+}
+
+button {
+  font-family: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+}
+
+input, textarea, select {
+  font-family: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  outline: none;
+}
+
+a {
+  color: var(--color-secondary);
+  text-decoration: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* Reduced motion respect */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Visible focus state for accessibility */
+:focus-visible {
+  outline: 2px solid var(--color-secondary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Utility */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
