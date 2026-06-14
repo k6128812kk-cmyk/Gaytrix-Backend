@@ -27,14 +27,13 @@ export async function createInvoice(req: AuthenticatedRequest, res: Response) {
   if (!plan) return res.status(400).json({ error: 'Invalid plan' });
 
   try {
-    const invoiceUrl = await bot.telegram.createInvoiceLink(
-      plan.title,
-      plan.description,
-      // payload carries the user id so we know who to upgrade on payment
-      JSON.stringify({ userId: req.user!.id, planId }),
-      'XTR', // Telegram Stars
-      [{ label: plan.title, amount: plan.stars }]
-    );
+    const invoiceUrl = await bot.telegram.createInvoiceLink({
+      title: plan.title,
+      description: plan.description,
+      payload: JSON.stringify({ userId: req.user!.id, planId }),
+      currency: 'XTR',
+      prices: [{ label: plan.title, amount: plan.stars }],
+    });
     res.json({ invoiceUrl });
   } catch (err) {
     console.error('createInvoice error:', err);
