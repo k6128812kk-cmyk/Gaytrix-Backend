@@ -6,9 +6,11 @@ import path from 'path';
 import dotenv from 'dotenv';
 dotenv.config();
 
+import http from 'http';
 import { testConnection } from './db/pool';
 import { startBot, bot } from './bot/bot';
 import routes from './routes/index';
+import { setupWebSocketServer } from './ws/chat';
 import fs from 'fs';
 
 // ==========================================================================
@@ -86,7 +88,10 @@ async function start() {
     const webhookUrl = process.env.WEBHOOK_URL;
     await startBot(IS_PRODUCTION && !!webhookUrl, webhookUrl);
 
-    app.listen(PORT, () => {
+    const server = http.createServer(app);
+    setupWebSocketServer(server);
+
+    server.listen(PORT, () => {
       console.log(`✅ GayTrix backend running on port ${PORT}`);
       console.log(`   Mode: ${IS_PRODUCTION ? 'production' : 'development'}`);
       console.log(`   Bot: ${IS_PRODUCTION ? 'webhook' : 'polling'}`);

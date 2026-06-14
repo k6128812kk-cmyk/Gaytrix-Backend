@@ -182,6 +182,41 @@ export async function reportUser(req: AuthenticatedRequest, res: Response) {
   }
 }
 
+export async function getBlockedUsers(req: AuthenticatedRequest, res: Response) {
+  try {
+    const result = await db.query(
+      `SELECT u.id, u.display_name, u.photos, u.telegram_username
+       FROM user_blocks b
+       JOIN users u ON b.blocked_id = u.id
+       WHERE b.blocker_id = $1
+       ORDER BY b.created_at DESC`,
+      [req.user!.id]
+    );
+    res.json(result.rows.map(row => ({
+      id: row.id,
+      displayName: row.display_name,
+      photos: row.photos,
+      telegramUsername: row.telegram_username,
+    })));
+  } catch (err) {
+    console.error('getBlockedUsers error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+}
+
+export async function unblockUser(req: AuthenticatedRequest, res: Response) {
+  try {
+    await db.query(
+      `DELETE FROM user_blocks WHERE blocker_id = $1 AND blocked_id = $2`,
+      [req.user!.id, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('unblockUser error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+}
+
 export async function blockUser(req: AuthenticatedRequest, res: Response) {
   try {
     await db.query(

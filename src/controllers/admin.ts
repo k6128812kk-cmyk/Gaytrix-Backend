@@ -258,6 +258,38 @@ export async function getAuditLog(req: AuthenticatedRequest, res: Response) {
   }
 }
 
+export async function revokePremium(req: AuthenticatedRequest, res: Response) {
+  const { userId } = req.params;
+  if (await isProtected(userId)) return res.status(403).json({ error: 'Cannot moderate this account' });
+  try {
+    await db.query(`UPDATE users SET membership_tier = 'free' WHERE id = $1`, [userId]);
+    await db.query(
+      `INSERT INTO admin_actions (admin_id, target_id, action, reason) VALUES ($1, $2, 'revoke_premium', 'Admin revoked premium')`,
+      [req.user!.id, userId]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('revokePremium error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+}
+
+export async function removeVerification(req: AuthenticatedRequest, res: Response) {
+  const { userId } = req.params;
+  if (await isProtected(userId)) return res.status(403).json({ error: 'Cannot moderate this account' });
+  try {
+    await db.query(`UPDATE users SET verification_status = 'none' WHERE id = $1`, [userId]);
+    await db.query(
+      `INSERT INTO admin_actions (admin_id, target_id, action, reason) VALUES ($1, $2, 'remove_verification', 'Admin removed verification badge')`,
+      [req.user!.id, userId]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('removeVerification error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+}
+
 export async function sendAnnouncement(req: AuthenticatedRequest, res: Response) {
   const { message } = req.body;
   if (!message?.trim()) return res.status(400).json({ error: 'Message required' });
