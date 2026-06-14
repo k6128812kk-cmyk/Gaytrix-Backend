@@ -30,7 +30,7 @@ app.use(helmet({
 }));
 
 app.use(cors({
-  origin: '*',
+  origin: FRONTEND_URL === '*' ? '*' : [FRONTEND_URL, /\.netlify\.app$/, /localhost:\d+$/],
   methods: ['GET', 'POST', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'X-Telegram-Init-Data'],
 }));
