@@ -167,6 +167,19 @@ async function migrate() {
       )
     `);
 
+    // ------------------------------------------------------------------
+    // Photos — stored as base64 data URLs in DB (no filesystem dependency)
+    // ------------------------------------------------------------------
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS photos (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        data_url TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_photos_owner ON photos(owner_id)`);
+
     // Indexes for performance
     await client.query(`CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_users_account_status ON users(account_status)`);

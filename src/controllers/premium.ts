@@ -50,7 +50,8 @@ export async function createInvoice(req: AuthenticatedRequest, res: Response) {
 
     if (!json.ok) {
       console.error('Telegram createInvoiceLink error:', json.description);
-      return res.status(500).json({ error: json.description ?? 'Could not create invoice' });
+      // Return real error so it shows in the app
+      return res.status(500).json({ error: `Telegram: ${json.description ?? 'Unknown error'}` });
     }
 
     res.json({ invoiceUrl: json.result });

@@ -205,3 +205,53 @@ export async function startConversation(req: AuthenticatedRequest, res: Response
     res.status(500).json({ error: 'Server error' });
   }
 }
+
+export async function sendPhotoMessage(req: AuthenticatedRequest, res: Response) {
+  const { conversationId } = req.params;
+
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No photo uploaded' });
+
+    // Verify user is part of conversation
+    const conv = await db.query(
+      `SELECT * FROM conversations WHERE id = $1 AND (user_a = $2 OR user_b = $2)`,
+      [conversationId, req.user!.id]
+    );
+    if (!conv.rows[0]) return res.status(403).json({ error: 'Access denied' });
+
+    // Store photo in DB
+    const { v4: uuid } = await import('uuid');
+    const photoId = uuid();
+    const mimeType = req.file.mimetype;
+    const base64 = req.file.buffer.toString('base64');
+    const dataUrl = `data:${mimeType};base64,${base64}`;
+
+    await db.query(
+      `INSERT INTO photos (id, owner_id, data_url, created_at) VALUES ($1, $2, $3, NOW())`,
+      [photoId, req.user!.id, dataUrl]
+    );
+
+    const host = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+    const mediaUrl = `${host}/v1/photos/${photoId}`;
+
+    const result = await db.query(
+      `INSERT INTO messages (conversation_id, sender_id, content_type, media_url)
+       VALUES ($1, $2, 'image', $3)
+       RETURNING id, conversation_id, sender_id, content_type as type, text, media_url, sent_at, read_at`,
+      [conversationId, req.user!.id, mediaUrl]
+    );
+
+    res.json({
+      id: result.rows[0].id,
+      conversationId: result.rows[0].conversation_id,
+      senderId: result.rows[0].sender_id,
+      type: result.rows[0].type,
+      mediaUrl: result.rows[0].media_url,
+      sentAt: result.rows[0].sent_at,
+      readAt: result.rows[0].read_at,
+    });
+  } catch (err) {
+    console.error('sendPhotoMessage error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+}
