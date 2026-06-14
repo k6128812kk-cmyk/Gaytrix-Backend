@@ -250,7 +250,8 @@ export async function getGroupMembers(req: AuthenticatedRequest, res: Response) 
   const { groupId } = req.params;
   try {
     const result = await db.query(
-      `SELECT u.id, u.display_name, u.photos, u.verification_status, u.membership_tier, u.admin_role
+      `SELECT u.id, u.display_name, u.photos, u.verification_status, u.membership_tier, u.admin_role,
+              CASE WHEN u.hide_online_status THEN FALSE ELSE u.is_online END as is_online
        FROM community_group_members cgm
        JOIN users u ON cgm.user_id = u.id
        WHERE cgm.group_id = $1
@@ -264,8 +265,33 @@ export async function getGroupMembers(req: AuthenticatedRequest, res: Response) 
       verification: row.verification_status,
       membership: row.membership_tier,
       adminRole: row.admin_role,
+      isOnline: row.is_online,
     })));
   } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+}
+
+export async function getGroup(req: AuthenticatedRequest, res: Response) {
+  const { groupId } = req.params;
+  try {
+    const result = await db.query(
+      `SELECT g.*, u.display_name as creator_name, u.photos[1] as creator_photo,
+              (SELECT COUNT(*) FROM community_group_members cgm WHERE cgm.group_id = g.id) as member_count
+       FROM community_groups g
+       LEFT JOIN users u ON g.created_by = u.id
+       WHERE g.id = $1 AND g.status = 'active'`,
+      [groupId]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Group not found' });
+    const row = result.rows[0];
+    const memberRes = await db.query(
+      'SELECT 1 FROM community_group_members WHERE group_id = $1 AND user_id = $2',
+      [groupId, req.user!.id]
+    );
+    res.json(formatGroup(row, parseInt(row.member_count), memberRes.rows.length > 0));
+  } catch (err) {
+    console.error('getGroup error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 }

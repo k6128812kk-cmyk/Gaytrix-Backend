@@ -166,3 +166,80 @@ export async function getStoryViewCount(req: AuthenticatedRequest, res: Response
     res.status(500).json({ error: 'Server error' });
   }
 }
+
+// ==========================================================================
+// Story reply — sends as a private message to the story owner.
+// The message is tagged with the story reference.
+// ==========================================================================
+export async function replyToStory(req: AuthenticatedRequest, res: Response) {
+  const { storyId } = req.params;
+  const { text } = req.body;
+
+  if (!text?.trim()) return res.status(400).json({ error: 'Reply text required' });
+
+  try {
+    // Get story owner
+    const storyRes = await db.query(
+      `SELECT s.user_id, s.photo_url, u.display_name
+       FROM stories s JOIN users u ON s.user_id = u.id
+       WHERE s.id = $1 AND s.created_at > NOW() - INTERVAL '24 hours'`,
+      [storyId]
+    );
+    if (!storyRes.rows[0]) return res.status(404).json({ error: 'Story not found or expired' });
+    if (storyRes.rows[0].user_id === req.user!.id) {
+      return res.status(400).json({ error: 'Cannot reply to your own story' });
+    }
+
+    const ownerId = storyRes.rows[0].user_id;
+
+    // Find or create a 1:1 conversation
+    const userA = req.user!.id < ownerId ? req.user!.id : ownerId;
+    const userB = req.user!.id < ownerId ? ownerId : req.user!.id;
+
+    let convRes = await db.query(
+      `SELECT id FROM conversations WHERE user_a = $1 AND user_b = $2`,
+      [userA, userB]
+    );
+    if (!convRes.rows[0]) {
+      convRes = await db.query(
+        `INSERT INTO conversations (user_a, user_b, is_request) VALUES ($1, $2, TRUE) RETURNING id`,
+        [userA, userB]
+      );
+    }
+    const conversationId = convRes.rows[0].id;
+
+    // Format the reply message with story reference
+    const replyText = `📷 Replied to your story:\n"${text.trim()}"`;
+
+    const msgRes = await db.query(
+      `INSERT INTO messages (conversation_id, sender_id, content_type, text)
+       VALUES ($1, $2, 'text', $3) RETURNING *`,
+      [conversationId, req.user!.id, replyText]
+    );
+
+    // Send Telegram notification to story owner
+    try {
+      const notifyRes = await db.query(
+        `SELECT telegram_id FROM users WHERE id = $1`, [ownerId]
+      );
+      if (notifyRes.rows[0]) {
+        const { sendNotification } = await import('../bot/bot');
+        const senderRes = await db.query('SELECT display_name FROM users WHERE id = $1', [req.user!.id]);
+        const senderName = senderRes.rows[0]?.display_name || 'Someone';
+        await sendNotification(
+          notifyRes.rows[0].telegram_id,
+          `💬 ${senderName} replied to your story on GayTrix`
+        );
+      }
+    } catch { /* notification failure is non-fatal */ }
+
+    res.json({
+      ok: true,
+      conversationId,
+      messageId: msgRes.rows[0].id,
+    });
+  } catch (err) {
+    console.error('replyToStory error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+}

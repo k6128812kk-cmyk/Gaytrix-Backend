@@ -23,10 +23,10 @@ import {
   getModerators, promoteModerator, demoteModerator,
 } from '../controllers/admin';
 import {
-  getGroups, createGroup, joinGroup, leaveGroup, deleteGroup,
+  getGroups, getGroup, createGroup, joinGroup, leaveGroup, deleteGroup,
   getGroupMessages, sendGroupMessage, getGroupMembers,
 } from '../controllers/groups';
-import { getStories, createStory, markStoryViewed, deleteStory, getStoryViewers } from '../controllers/stories';
+import { getStories, createStory, markStoryViewed, deleteStory, getStoryViewers, replyToStory } from '../controllers/stories';
 
 // ── Upload directories ────────────────────────────────────────────
 function makeUpload(subdir: string) {
@@ -110,6 +110,7 @@ router.post('/group-chat/:conversationId/messages', sendEventGroupMessage);
 
 // ── Community Groups ──────────────────────────────────────────────
 router.get('/groups', getGroups);
+router.get('/groups/:groupId', getGroup);
 router.post('/groups', groupPhotoUpload.single('photo'), createGroup);
 router.post('/groups/:groupId/join', joinGroup);
 router.post('/groups/:groupId/leave', leaveGroup);
@@ -124,6 +125,7 @@ router.post('/stories', storyUpload.single('photo'), createStory);
 router.post('/stories/:storyId/view', markStoryViewed);
 router.delete('/stories/:storyId', deleteStory);
 router.get('/stories/:storyId/viewers', getStoryViewers);
+router.post('/stories/:storyId/reply', replyToStory);
 
 // ── Verification ──────────────────────────────────────────────────
 router.post('/verification/request', selfieUpload.single('selfie'), requestVerification);
