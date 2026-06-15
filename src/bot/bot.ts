@@ -27,7 +27,7 @@ bot.start(async (ctx) => {
     {
       parse_mode: 'Markdown',
       reply_markup: {
-        inline_keyboard: [[{ text: '🌈 Open K5', web_app: { url: MINI_APP_URL } }]],
+        inline_keyboard: [[{ text: ' Open K5', web_app: { url: MINI_APP_URL } }]],
       },
     }
   );
@@ -81,7 +81,7 @@ export async function startBot(useWebhook = false, webhookUrl?: string) {
   }
   try {
     await bot.telegram.setChatMenuButton({
-      menuButton: { type: 'web_app', text: '🌈 Open K5', web_app: { url: MINI_APP_URL } },
+      menuButton: { type: 'web_app', text: 'Open K5', web_app: { url: MINI_APP_URL } },
     });
     console.log('✅ Bot menu button set');
   } catch (err) {
