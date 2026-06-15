@@ -8,7 +8,7 @@ import { getMe, updateMe, getProfile, reportUser, blockUser, getBlockedUsers, un
 import { uploadPhoto, servePhoto, deletePhoto } from '../controllers/photos';
 import { createInvoice } from '../controllers/premium';
 import { getNearby, getExplore } from '../controllers/discovery';
-import { getConversations, getMessages, sendMessage, startConversation, sendPhotoMessage } from '../controllers/messages';
+import { getConversations, getMessages, sendMessage, startConversation, sendPhotoMessage, deleteConversation } from '../controllers/messages';
 import { getLocations, createLocation, upvoteLocation, reportLocation } from '../controllers/map';
 import {
   getEvents, createEvent, joinEvent, leaveEvent, deleteEvent, updateEvent,
@@ -28,6 +28,7 @@ import {
   addModerator, removeModerator,
   getJoinRequests, approveJoinRequest, rejectJoinRequest,
   muteGroup, unmuteGroup,
+  kickGroupMember, deleteGroupMessage,
 } from '../controllers/groups';
 import { getStories, createStory, markStoryViewed, deleteStory, getStoryViewers, replyToStory } from '../controllers/stories';
 
@@ -91,6 +92,7 @@ router.get('/messages/conversations', getConversations);
 router.get('/messages/conversations/:conversationId', getMessages);
 router.post('/messages/conversations/:conversationId', sendMessage);
 router.post('/messages/conversations/:conversationId/photo', memoryUpload.single('photo'), sendPhotoMessage as any);
+router.delete('/messages/conversations/:conversationId', deleteConversation);
 router.post('/messages/start', startConversation);
 
 // ── Map locations ─────────────────────────────────────────────────
@@ -125,6 +127,10 @@ router.get('/groups/:groupId/members', getGroupMembers);
 // Moderator management
 router.post('/groups/:groupId/moderators/:userId', addModerator);
 router.delete('/groups/:groupId/moderators/:userId', removeModerator);
+// Member management
+router.delete('/groups/:groupId/members/:userId', kickGroupMember);
+// Message management
+router.delete('/groups/:groupId/messages/:messageId', deleteGroupMessage);
 // Join request management
 router.get('/groups/:groupId/join-requests', getJoinRequests);
 router.post('/groups/:groupId/join-requests/:requestId/approve', approveJoinRequest);

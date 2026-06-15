@@ -26,7 +26,11 @@ export async function getConversations(req: AuthenticatedRequest, res: Response)
         (SELECT m.read_at FROM messages m WHERE m.conversation_id = c.id ORDER BY m.sent_at DESC LIMIT 1) as lm_read_at,
         (SELECT m.sender_id FROM messages m WHERE m.conversation_id = c.id ORDER BY m.sent_at DESC LIMIT 1) as lm_sender_id
        FROM conversations c
-       WHERE c.user_a = $1 OR c.user_b = $1
+       WHERE (c.user_a = $1 OR c.user_b = $1)
+         AND NOT EXISTS (
+           SELECT 1 FROM conversation_deletions cd
+           WHERE cd.conversation_id = c.id AND cd.user_id = $1
+         )
        ORDER BY (
          SELECT sent_at FROM messages WHERE conversation_id = c.id
          ORDER BY sent_at DESC LIMIT 1
@@ -239,6 +243,50 @@ export async function sendPhotoMessage(req: AuthenticatedRequest, res: Response)
     });
   } catch (err) {
     console.error('sendPhotoMessage error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+}
+
+// ==========================================================================
+// Soft-delete a conversation for the requesting user.
+// If both sides have deleted, physically remove the conversation + messages.
+// ==========================================================================
+export async function deleteConversation(req: AuthenticatedRequest, res: Response) {
+  const { conversationId } = req.params;
+
+  try {
+    // Verify the user is a participant
+    const conv = await db.query(
+      `SELECT user_a, user_b FROM conversations WHERE id = $1 AND (user_a = $2 OR user_b = $2)`,
+      [conversationId, req.user!.id]
+    );
+    if (!conv.rows[0]) return res.status(404).json({ error: 'Conversation not found' });
+
+    const { user_a, user_b } = conv.rows[0];
+    const otherUserId = user_a === req.user!.id ? user_b : user_a;
+
+    // Record this user's deletion
+    await db.query(
+      `INSERT INTO conversation_deletions (conversation_id, user_id)
+       VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [conversationId, req.user!.id]
+    );
+
+    // Check if the other participant has also deleted
+    const otherDeleted = await db.query(
+      `SELECT 1 FROM conversation_deletions WHERE conversation_id = $1 AND user_id = $2`,
+      [conversationId, otherUserId]
+    );
+
+    if (otherDeleted.rows.length > 0) {
+      // Both sides deleted — physically remove everything
+      await db.query(`DELETE FROM conversations WHERE id = $1`, [conversationId]);
+      res.json({ ok: true, fullyDeleted: true });
+    } else {
+      res.json({ ok: true, fullyDeleted: false });
+    }
+  } catch (err) {
+    console.error('deleteConversation error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 }

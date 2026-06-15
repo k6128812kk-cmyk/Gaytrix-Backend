@@ -84,7 +84,13 @@ export async function getStories(req: AuthenticatedRequest, res: Response) {
           createdAt: r.created_at,
         })),
       } : null,
-      stories: Array.from(userMap.values()),
+      // viewCount is intentionally NOT returned here — only story owner
+      // can see analytics. The viewer endpoint enforces the same check.
+      stories: Array.from(userMap.values()).map(s => {
+        const { ...story } = s;
+        delete story.viewCount; // never expose counts to non-owners
+        return story;
+      }),
     });
   } catch (err) {
     console.error('getStories error:', err);

@@ -296,9 +296,10 @@ export async function getGroupMessages(req: AuthenticatedRequest, res: Response)
       senderId: row.sender_id,
       senderName: row.sender_name,
       senderPhoto: row.sender_photo,
-      text: row.text,
-      mediaUrl: row.media_url,
-      contentType: row.content_type || 'text',
+      text: row.deleted_at ? null : row.text,
+      mediaUrl: row.deleted_at ? null : row.media_url,
+      contentType: row.deleted_at ? 'deleted' : (row.content_type || 'text'),
+      deletedAt: row.deleted_at || null,
       sentAt: row.sent_at,
     })));
   } catch (err) {
@@ -631,6 +632,99 @@ export async function unmuteGroup(req: AuthenticatedRequest, res: Response) {
     );
     res.json({ ok: true, muted: false });
   } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+}
+
+// ── Kick (remove) a member from a group ──────────────────────────────────
+export async function kickGroupMember(req: AuthenticatedRequest, res: Response) {
+  const { groupId, userId } = req.params;
+
+  try {
+    const groupRes = await db.query(
+      `SELECT created_by FROM community_groups WHERE id = $1 AND status = 'active'`, [groupId]
+    );
+    if (!groupRes.rows[0]) return res.status(404).json({ error: 'Group not found' });
+
+    // Check requester's role in the group
+    const requesterRole = await db.query(
+      `SELECT role FROM community_group_members WHERE group_id = $1 AND user_id = $2`,
+      [groupId, req.user!.id]
+    );
+    const platformRole = req.user!.adminRole;
+    const isSuperAdmin = platformRole === 'admin' || platformRole === 'super_admin';
+    const isCreator = groupRes.rows[0].created_by === req.user!.id;
+    const isMod = requesterRole.rows[0]?.role === 'moderator' || requesterRole.rows[0]?.role === 'creator';
+
+    if (!isCreator && !isMod && !isSuperAdmin) {
+      return res.status(403).json({ error: 'Not authorized to kick members' });
+    }
+
+    // Cannot kick the group creator
+    if (userId === groupRes.rows[0].created_by) {
+      return res.status(400).json({ error: 'Cannot remove the group creator' });
+    }
+
+    // Moderators cannot kick other moderators — only creator/admin can
+    const targetRole = await db.query(
+      `SELECT role FROM community_group_members WHERE group_id = $1 AND user_id = $2`,
+      [groupId, userId]
+    );
+    if (targetRole.rows[0]?.role === 'moderator' && !isCreator && !isSuperAdmin) {
+      return res.status(403).json({ error: 'Only the creator or admin can remove moderators' });
+    }
+
+    await db.query(
+      `DELETE FROM community_group_members WHERE group_id = $1 AND user_id = $2`,
+      [groupId, userId]
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('kickGroupMember error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+}
+
+// ── Delete a group message (admin/super-admin or sender) ──────────────────
+export async function deleteGroupMessage(req: AuthenticatedRequest, res: Response) {
+  const { groupId, messageId } = req.params;
+
+  try {
+    // Check message exists and belongs to this group
+    const msgRes = await db.query(
+      `SELECT sender_id, deleted_at FROM community_group_messages WHERE id = $1 AND group_id = $2`,
+      [messageId, groupId]
+    );
+    if (!msgRes.rows[0]) return res.status(404).json({ error: 'Message not found' });
+    if (msgRes.rows[0].deleted_at) return res.status(400).json({ error: 'Message already deleted' });
+
+    const platformRole = req.user!.adminRole;
+    const isSuperAdmin = platformRole === 'admin' || platformRole === 'super_admin';
+    const isSender = msgRes.rows[0].sender_id === req.user!.id;
+
+    // Mods/creators can also delete messages in their group
+    const memberRole = await db.query(
+      `SELECT role FROM community_group_members WHERE group_id = $1 AND user_id = $2`,
+      [groupId, req.user!.id]
+    );
+    const isGroupMod = memberRole.rows[0]?.role === 'creator' || memberRole.rows[0]?.role === 'moderator';
+
+    if (!isSender && !isSuperAdmin && !isGroupMod) {
+      return res.status(403).json({ error: 'Not authorized to delete this message' });
+    }
+
+    // Soft-delete: mark as deleted but keep the row for audit purposes
+    await db.query(
+      `UPDATE community_group_messages
+       SET deleted_at = NOW(), deleted_by = $1, text = NULL, media_url = NULL
+       WHERE id = $2`,
+      [req.user!.id, messageId]
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('deleteGroupMessage error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 }

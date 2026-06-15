@@ -321,6 +321,24 @@ async function migrate() {
       )
     `);
 
+    // ── Per-user conversation soft-delete ───────────────────────────────
+    // Tracks which user has "deleted" a conversation from their side.
+    // The conversation is hidden for that user but still visible to the other.
+    // When BOTH sides delete, the conversation (and messages) are physically removed.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS conversation_deletions (
+        conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        deleted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (conversation_id, user_id)
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_conv_deletions ON conversation_deletions(conversation_id)`);
+
+    // Group message soft-delete (admins/super-admins can remove messages)
+    await client.query(`ALTER TABLE community_group_messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
+    await client.query(`ALTER TABLE community_group_messages ADD COLUMN IF NOT EXISTS deleted_by UUID REFERENCES users(id)`);
+
     await client.query(`CREATE INDEX IF NOT EXISTS idx_stories_user ON stories(user_id, created_at DESC)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_story_views ON story_views(story_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_groups_last_msg ON community_groups(last_message_at DESC)`);
