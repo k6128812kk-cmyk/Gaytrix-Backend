@@ -21,7 +21,9 @@ export const bot = new Telegraf(BOT_TOKEN || 'placeholder:placeholder');
 bot.start(async (ctx) => {
   const user = ctx.from;
   await ctx.reply(
-    `👋 Welcome to *K5*, ${user.first_name}!\n\nThe LGBTQ+ community discovery platform built inside Telegram.\n\nTap the button below to open the app:`,
+    `👋 Welcome to *K5*, ${user.first_name}!\n\nK5 is a dating and social discovery platform inside Telegram where people of all genders and sexual orientations can meet, chat, and connect.
+
+💜 Find friends, dates, relationships, and new connections near you.\n\nTap the button below to open the app:`,
     {
       parse_mode: 'Markdown',
       reply_markup: {
