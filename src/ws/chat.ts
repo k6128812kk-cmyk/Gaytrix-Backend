@@ -177,21 +177,25 @@ export function setupWebSocketServer(server: Server) {
           }
         }
 
-        // ── Send group message ───────────────────────────────────────
-        if (msg.type === 'send_group_message') {
-          const { conversationId, text } = msg;
-          if (!conversationId || !text?.trim()) return;
+        // ── Send community group message ─────────────────────────────
+        if (msg.type === 'send_community_group_message') {
+          const { groupId, text } = msg;
+          if (!groupId || !text?.trim()) return;
 
           const memberRes = await db.query(
-            'SELECT 1 FROM group_members WHERE conversation_id = $1 AND user_id = $2',
-            [conversationId, userId]
+            'SELECT role FROM community_group_members WHERE group_id = $1 AND user_id = $2',
+            [groupId, userId]
           );
           if (!memberRes.rows[0]) return;
 
           const saved = await db.query(
-            `INSERT INTO group_messages (conversation_id, sender_id, content_type, text)
-             VALUES ($1, $2, 'text', $3) RETURNING *`,
-            [conversationId, userId, text.trim()]
+            `INSERT INTO community_group_messages (group_id, sender_id, text, content_type)
+             VALUES ($1, $2, $3, 'text') RETURNING *`,
+            [groupId, userId, text.trim()]
+          );
+
+          await db.query(
+            `UPDATE community_groups SET last_message_at = NOW() WHERE id = $1`, [groupId]
           );
 
           const userRes = await db.query(
@@ -200,20 +204,21 @@ export function setupWebSocketServer(server: Server) {
 
           const groupMsg = {
             id: saved.rows[0].id,
-            conversationId,
+            groupId,
             senderId: userId,
             senderName: userRes.rows[0].display_name,
             senderPhoto: userRes.rows[0].photos?.[0] ?? null,
-            type: 'text',
             text: saved.rows[0].text,
+            mediaUrl: null,
+            contentType: 'text',
             sentAt: saved.rows[0].sent_at,
           };
 
           // Get all members and push to online ones
           const membersRes = await db.query(
-            'SELECT user_id FROM group_members WHERE conversation_id = $1', [conversationId]
+            'SELECT user_id FROM community_group_members WHERE group_id = $1', [groupId]
           );
-          const payload = JSON.stringify({ type: 'group_message', message: groupMsg });
+          const payload = JSON.stringify({ type: 'community_group_message', message: groupMsg });
           membersRes.rows.forEach(row => {
             if (row.user_id === userId) {
               ws.send(payload); // confirm to sender
@@ -222,6 +227,17 @@ export function setupWebSocketServer(server: Server) {
               memberSockets?.forEach(sock => {
                 if (sock.readyState === WebSocket.OPEN) sock.send(payload);
               });
+            }
+          });
+
+          // Push unread count updates to all online non-sender members who haven't muted
+          const mutedRes = await db.query(
+            `SELECT user_id FROM community_group_mutes WHERE group_id = $1`, [groupId]
+          );
+          const mutedIds = new Set(mutedRes.rows.map((r: any) => r.user_id));
+          membersRes.rows.forEach(row => {
+            if (row.user_id !== userId && !mutedIds.has(row.user_id)) {
+              pushUnreadCount(row.user_id).catch(() => {});
             }
           });
         }

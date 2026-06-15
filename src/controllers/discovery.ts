@@ -138,7 +138,9 @@ export async function getExplore(req: AuthenticatedRequest, res: Response) {
       sectionWhere = `AND u.verification_status = 'verified'`;
       break;
     case 'recent':
-      sectionWhere = `AND u.is_online = TRUE AND u.hide_online_status = FALSE`;
+      // Show users active in the last 24 hours, ordered by most recent activity
+      sectionWhere = `AND u.last_active_at > NOW() - INTERVAL '24 hours'`;
+      orderBy = `CASE WHEN u.is_online = TRUE AND u.hide_online_status = FALSE THEN 0 ELSE 1 END, u.last_active_at DESC`;
       break;
   }
 

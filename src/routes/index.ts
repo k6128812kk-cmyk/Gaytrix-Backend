@@ -23,8 +23,11 @@ import {
   getModerators, promoteModerator, demoteModerator,
 } from '../controllers/admin';
 import {
-  getGroups, getGroup, createGroup, joinGroup, leaveGroup, deleteGroup,
+  getGroups, getGroup, createGroup, updateGroup, joinGroup, leaveGroup, deleteGroup,
   getGroupMessages, sendGroupMessage, getGroupMembers,
+  addModerator, removeModerator,
+  getJoinRequests, approveJoinRequest, rejectJoinRequest,
+  muteGroup, unmuteGroup,
 } from '../controllers/groups';
 import { getStories, createStory, markStoryViewed, deleteStory, getStoryViewers, replyToStory } from '../controllers/stories';
 
@@ -112,12 +115,23 @@ router.post('/group-chat/:conversationId/messages', sendEventGroupMessage);
 router.get('/groups', getGroups);
 router.get('/groups/:groupId', getGroup);
 router.post('/groups', groupPhotoUpload.single('photo'), createGroup);
+router.patch('/groups/:groupId', groupPhotoUpload.single('photo'), updateGroup);
 router.post('/groups/:groupId/join', joinGroup);
 router.post('/groups/:groupId/leave', leaveGroup);
 router.delete('/groups/:groupId', deleteGroup);
 router.get('/groups/:groupId/messages', getGroupMessages);
-router.post('/groups/:groupId/messages', sendGroupMessage);
+router.post('/groups/:groupId/messages', groupPhotoUpload.single('photo'), sendGroupMessage);
 router.get('/groups/:groupId/members', getGroupMembers);
+// Moderator management
+router.post('/groups/:groupId/moderators/:userId', addModerator);
+router.delete('/groups/:groupId/moderators/:userId', removeModerator);
+// Join request management
+router.get('/groups/:groupId/join-requests', getJoinRequests);
+router.post('/groups/:groupId/join-requests/:requestId/approve', approveJoinRequest);
+router.post('/groups/:groupId/join-requests/:requestId/reject', rejectJoinRequest);
+// Notification mute/unmute
+router.post('/groups/:groupId/mute', muteGroup);
+router.delete('/groups/:groupId/mute', unmuteGroup);
 
 // ── Stories ───────────────────────────────────────────────────────
 router.get('/stories', getStories);

@@ -51,6 +51,7 @@ async function migrate() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS gender_identity TEXT NOT NULL DEFAULT ''`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS interested_in TEXT NOT NULL DEFAULT 'everyone'`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS orientation TEXT NOT NULL DEFAULT ''`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS relationship_status TEXT NOT NULL DEFAULT 'single'`);
 
     // Rename super_admin → admin for existing rows
     await client.query(`UPDATE users SET admin_role = 'admin' WHERE admin_role = 'super_admin'`);
@@ -236,9 +237,13 @@ async function migrate() {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         photo_url TEXT NOT NULL,
+        caption TEXT NOT NULL DEFAULT '',
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
+    // Add caption column if upgrading existing DB
+    await client.query(`ALTER TABLE stories ADD COLUMN IF NOT EXISTS caption TEXT NOT NULL DEFAULT ''`);
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS story_views (
         story_id UUID NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
@@ -258,24 +263,61 @@ async function migrate() {
         created_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         last_message_at TIMESTAMPTZ,
         status TEXT NOT NULL DEFAULT 'active',
+        is_private BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
+    // Add is_private column if upgrading existing DB
+    await client.query(`ALTER TABLE community_groups ADD COLUMN IF NOT EXISTS is_private BOOLEAN NOT NULL DEFAULT FALSE`);
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS community_group_members (
         group_id UUID NOT NULL REFERENCES community_groups(id) ON DELETE CASCADE,
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        role TEXT NOT NULL DEFAULT 'member',
         joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         PRIMARY KEY (group_id, user_id)
       )
     `);
+    // Add role column if upgrading existing DB
+    await client.query(`ALTER TABLE community_group_members ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'member'`);
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS community_group_messages (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         group_id UUID NOT NULL REFERENCES community_groups(id) ON DELETE CASCADE,
         sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        text TEXT NOT NULL,
+        text TEXT,
+        media_url TEXT,
+        content_type TEXT NOT NULL DEFAULT 'text',
         sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    // Add media columns if upgrading existing DB
+    await client.query(`ALTER TABLE community_group_messages ADD COLUMN IF NOT EXISTS media_url TEXT`);
+    await client.query(`ALTER TABLE community_group_messages ADD COLUMN IF NOT EXISTS content_type TEXT NOT NULL DEFAULT 'text'`);
+
+    // Group join requests (for private/locked groups)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS community_group_join_requests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        group_id UUID NOT NULL REFERENCES community_groups(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'pending',
+        requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        reviewed_at TIMESTAMPTZ,
+        reviewed_by UUID REFERENCES users(id),
+        UNIQUE(group_id, user_id)
+      )
+    `);
+
+    // Group notification mutes
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS community_group_mutes (
+        group_id UUID NOT NULL REFERENCES community_groups(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        muted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (group_id, user_id)
       )
     `);
 
@@ -283,6 +325,7 @@ async function migrate() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_story_views ON story_views(story_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_groups_last_msg ON community_groups(last_message_at DESC)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_group_msgs ON community_group_messages(group_id, sent_at)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_group_join_requests ON community_group_join_requests(group_id, status)`);
 
     await client.query('COMMIT');
     console.log('✅ Migration complete — all tables created');

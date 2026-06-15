@@ -4,14 +4,14 @@ import { AuthenticatedRequest } from '../middleware/auth';
 
 // ==========================================================================
 // Stories controller — 24-hour ephemeral photo stories shown on Discover.
+// Multiple stories per user are supported. Auto-expire after 24h.
 // ==========================================================================
 
 export async function getStories(req: AuthenticatedRequest, res: Response) {
   try {
-    // Get one story per user (most recent), within last 24h
+    // Get ALL active stories per user (not just one per user), grouped by user
     const result = await db.query(
-      `SELECT DISTINCT ON (s.user_id)
-              s.id, s.user_id, s.photo_url, s.created_at,
+      `SELECT s.id, s.user_id, s.photo_url, s.caption, s.created_at,
               u.display_name, u.photos[1] as avatar,
               u.verification_status, u.membership_tier, u.admin_role,
               EXISTS (
@@ -33,33 +33,58 @@ export async function getStories(req: AuthenticatedRequest, res: Response) {
       [req.user!.id]
     );
 
-    // Also get current user's own story if any
-    const myStory = await db.query(
-      `SELECT s.id, s.user_id, s.photo_url, s.created_at
+    // Group stories by user — first story is the "thumbnail" for the ring
+    const userMap = new Map<string, any>();
+    for (const row of result.rows) {
+      if (!userMap.has(row.user_id)) {
+        userMap.set(row.user_id, {
+          userId: row.user_id,
+          displayName: row.display_name,
+          avatar: row.avatar,
+          verification: row.verification_status,
+          membership: row.membership_tier,
+          adminRole: row.admin_role,
+          // First story (most recent) is the thumbnail shown in ring
+          id: row.id,
+          photoUrl: row.photo_url,
+          caption: row.caption || '',
+          createdAt: row.created_at,
+          viewed: row.viewed,
+          stories: [],
+        });
+      }
+      userMap.get(row.user_id).stories.push({
+        id: row.id,
+        photoUrl: row.photo_url,
+        caption: row.caption || '',
+        createdAt: row.created_at,
+        viewed: row.viewed,
+      });
+    }
+
+    // Also get current user's own stories if any
+    const myStoriesRes = await db.query(
+      `SELECT s.id, s.photo_url, s.caption, s.created_at
        FROM stories s
        WHERE s.user_id = $1 AND s.created_at > NOW() - INTERVAL '24 hours'
-       ORDER BY s.created_at DESC LIMIT 1`,
+       ORDER BY s.created_at DESC`,
       [req.user!.id]
     );
 
     res.json({
-      myStory: myStory.rows[0] ? {
-        id: myStory.rows[0].id,
-        photoUrl: myStory.rows[0].photo_url,
-        createdAt: myStory.rows[0].created_at,
+      myStory: myStoriesRes.rows[0] ? {
+        id: myStoriesRes.rows[0].id,
+        photoUrl: myStoriesRes.rows[0].photo_url,
+        caption: myStoriesRes.rows[0].caption || '',
+        createdAt: myStoriesRes.rows[0].created_at,
+        allStories: myStoriesRes.rows.map(r => ({
+          id: r.id,
+          photoUrl: r.photo_url,
+          caption: r.caption || '',
+          createdAt: r.created_at,
+        })),
       } : null,
-      stories: result.rows.map(row => ({
-        id: row.id,
-        userId: row.user_id,
-        photoUrl: row.photo_url,
-        createdAt: row.created_at,
-        displayName: row.display_name,
-        avatar: row.avatar,
-        verification: row.verification_status,
-        membership: row.membership_tier,
-        adminRole: row.admin_role,
-        viewed: row.viewed,
-      })),
+      stories: Array.from(userMap.values()),
     });
   } catch (err) {
     console.error('getStories error:', err);
@@ -72,15 +97,18 @@ export async function createStory(req: AuthenticatedRequest, res: Response) {
   if (!file) return res.status(400).json({ error: 'Photo required' });
 
   const photoUrl = `/uploads/stories/${file.filename}`;
+  const caption = (req.body.caption || '').trim().slice(0, 500);
 
   try {
+    // Do NOT delete existing stories — just insert a new one
     const result = await db.query(
-      `INSERT INTO stories (user_id, photo_url) VALUES ($1, $2) RETURNING *`,
-      [req.user!.id, photoUrl]
+      `INSERT INTO stories (user_id, photo_url, caption) VALUES ($1, $2, $3) RETURNING *`,
+      [req.user!.id, photoUrl, caption]
     );
     res.status(201).json({
       id: result.rows[0].id,
       photoUrl: result.rows[0].photo_url,
+      caption: result.rows[0].caption || '',
       createdAt: result.rows[0].created_at,
     });
   } catch (err) {
@@ -122,7 +150,6 @@ export async function deleteStory(req: AuthenticatedRequest, res: Response) {
 export async function getStoryViewers(req: AuthenticatedRequest, res: Response) {
   const { storyId } = req.params;
   try {
-    // Only story owner or admin can see viewers
     const storyRes = await db.query(
       `SELECT user_id FROM stories WHERE id = $1`, [storyId]
     );
@@ -169,7 +196,7 @@ export async function getStoryViewCount(req: AuthenticatedRequest, res: Response
 
 // ==========================================================================
 // Story reply — sends as a private message to the story owner.
-// The message is tagged with the story reference.
+// Reuses existing conversation if one already exists.
 // ==========================================================================
 export async function replyToStory(req: AuthenticatedRequest, res: Response) {
   const { storyId } = req.params;
@@ -180,7 +207,7 @@ export async function replyToStory(req: AuthenticatedRequest, res: Response) {
   try {
     // Get story owner
     const storyRes = await db.query(
-      `SELECT s.user_id, s.photo_url, u.display_name
+      `SELECT s.user_id, s.photo_url, s.caption, u.display_name
        FROM stories s JOIN users u ON s.user_id = u.id
        WHERE s.id = $1 AND s.created_at > NOW() - INTERVAL '24 hours'`,
       [storyId]
@@ -192,7 +219,7 @@ export async function replyToStory(req: AuthenticatedRequest, res: Response) {
 
     const ownerId = storyRes.rows[0].user_id;
 
-    // Find or create a 1:1 conversation
+    // Find existing 1:1 conversation (canonical order user_a < user_b)
     const userA = req.user!.id < ownerId ? req.user!.id : ownerId;
     const userB = req.user!.id < ownerId ? ownerId : req.user!.id;
 
@@ -200,11 +227,13 @@ export async function replyToStory(req: AuthenticatedRequest, res: Response) {
       `SELECT id FROM conversations WHERE user_a = $1 AND user_b = $2`,
       [userA, userB]
     );
+    let isNew = false;
     if (!convRes.rows[0]) {
       convRes = await db.query(
         `INSERT INTO conversations (user_a, user_b, is_request) VALUES ($1, $2, TRUE) RETURNING id`,
         [userA, userB]
       );
+      isNew = true;
     }
     const conversationId = convRes.rows[0].id;
 
@@ -237,9 +266,24 @@ export async function replyToStory(req: AuthenticatedRequest, res: Response) {
       ok: true,
       conversationId,
       messageId: msgRes.rows[0].id,
+      isNewConversation: isNew,
     });
   } catch (err) {
     console.error('replyToStory error:', err);
     res.status(500).json({ error: 'Server error' });
+  }
+}
+
+// Clean up expired stories (called periodically)
+export async function cleanupExpiredStories() {
+  try {
+    const result = await db.query(
+      `DELETE FROM stories WHERE created_at < NOW() - INTERVAL '24 hours' RETURNING id`
+    );
+    if (result.rowCount && result.rowCount > 0) {
+      console.log(`🗑️  Cleaned up ${result.rowCount} expired stories`);
+    }
+  } catch (err) {
+    console.error('cleanupExpiredStories error:', err);
   }
 }

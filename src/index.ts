@@ -11,6 +11,8 @@ import { testConnection } from './db/pool';
 import { startBot, bot } from './bot/bot';
 import routes from './routes/index';
 import { setupWebSocketServer } from './ws/chat';
+import { cleanupExpiredStories } from './controllers/stories';
+import { migrate } from './db/migrate';
 import fs from 'fs';
 
 // ==========================================================================
@@ -84,6 +86,11 @@ app.get('/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().to
 async function start() {
   try {
     await testConnection();
+    await migrate();
+
+    // Clean up expired stories every 30 minutes
+    setInterval(cleanupExpiredStories, 30 * 60 * 1000);
+    cleanupExpiredStories(); // run once on startup
 
     const webhookUrl = process.env.WEBHOOK_URL;
     await startBot(IS_PRODUCTION && !!webhookUrl, webhookUrl);
