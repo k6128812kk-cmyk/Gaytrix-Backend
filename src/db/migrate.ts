@@ -44,7 +44,8 @@ async function migrate() {
         gender_identity TEXT NOT NULL DEFAULT '',
         interested_in TEXT NOT NULL DEFAULT 'everyone',
         orientation TEXT NOT NULL DEFAULT '',
-        language_preference TEXT NOT NULL DEFAULT 'en'
+        language_preference TEXT NOT NULL DEFAULT 'en',
+        registration_complete BOOLEAN NOT NULL DEFAULT FALSE
       )
     `);
 
@@ -54,6 +55,7 @@ async function migrate() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS orientation TEXT NOT NULL DEFAULT ''`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS relationship_status TEXT NOT NULL DEFAULT 'single'`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS language_preference TEXT NOT NULL DEFAULT 'en'`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_complete BOOLEAN NOT NULL DEFAULT FALSE`);
 
     // Rename super_admin → admin for existing rows
     await client.query(`UPDATE users SET admin_role = 'admin' WHERE admin_role = 'super_admin'`);

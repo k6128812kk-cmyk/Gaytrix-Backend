@@ -102,6 +102,7 @@ export async function getNearby(req: AuthenticatedRequest, res: Response) {
        WHERE u.id != $1
          AND u.account_status = 'active'
          AND u.invisible_mode = FALSE
+         AND u.registration_complete = TRUE
          ${sql}
          AND u.id NOT IN (
            SELECT blocked_id FROM user_blocks WHERE blocker_id = $1
@@ -150,6 +151,7 @@ export async function getExplore(req: AuthenticatedRequest, res: Response) {
        WHERE u.id != $1
          AND u.account_status = 'active'
          AND u.invisible_mode = FALSE
+         AND u.registration_complete = TRUE
          ${sql}
          ${sectionWhere}
          AND u.id NOT IN (

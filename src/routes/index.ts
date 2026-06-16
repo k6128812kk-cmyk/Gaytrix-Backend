@@ -4,7 +4,7 @@ import path from 'path';
 import { v4 as uuid } from 'uuid';
 import fs from 'fs';
 import { authMiddleware, adminMiddleware, adminOnlyMiddleware } from '../middleware/auth';
-import { getMe, updateMe, getProfile, reportUser, blockUser, getBlockedUsers, unblockUser } from '../controllers/profile';
+import { getMe, updateMe, getProfile, reportUser, blockUser, getBlockedUsers, unblockUser, completeRegistration } from '../controllers/profile';
 import { uploadPhoto, servePhoto, deletePhoto } from '../controllers/photos';
 import { createInvoice } from '../controllers/premium';
 import { getNearby, getExplore } from '../controllers/discovery';
@@ -72,6 +72,7 @@ router.use(authMiddleware);
 // ── Profile ───────────────────────────────────────────────────────
 router.get('/profile/me', getMe);
 router.patch('/profile/me', updateMe);
+router.post('/profile/complete-registration', completeRegistration);
 router.get('/profiles/:id', getProfile);
 router.get('/users/blocked', getBlockedUsers);
 router.post('/users/:id/report', reportUser);

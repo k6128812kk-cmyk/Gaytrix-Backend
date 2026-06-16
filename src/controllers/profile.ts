@@ -46,6 +46,7 @@ function formatUser(row: Record<string, unknown>, hideOnline = false) {
       hideOnlineStatus: row.hide_online_status,
       privateProfile: row.private_profile,
     },
+    registrationComplete: row.registration_complete,
   };
 }
 
@@ -138,7 +139,8 @@ export async function getProfile(req: AuthenticatedRequest, res: Response) {
       `SELECT u.* FROM users u
        WHERE u.id = $1
          AND u.account_status = 'active'
-         AND u.invisible_mode = FALSE`,
+         AND u.invisible_mode = FALSE
+         AND u.registration_complete = TRUE`,
       [req.params.id]
     );
 
@@ -235,5 +237,76 @@ export async function unblockUser(req: AuthenticatedRequest, res: Response) {
   } catch (err) {
     console.error('unblockUser error:', err);
     res.status(500).json({ error: 'Server error' });
+  }
+}
+
+// ==========================================================================
+// completeRegistration — atomically saves the final onboarding data and
+// sets registration_complete = TRUE in a single transaction.
+//
+// Rules (enforced server-side, never bypassed by client):
+//   • displayName must be a non-empty string (after trim)
+//   • photos array must contain at least one entry
+//   • If either check fails the profile is NOT marked complete and the
+//     user remains invisible to other users in the feed and on profiles.
+//   • This is the ONLY endpoint that sets registration_complete = TRUE.
+//     updateMe() intentionally cannot flip this flag.
+// ==========================================================================
+export async function completeRegistration(req: AuthenticatedRequest, res: Response) {
+  const {
+    displayName, photos, age, city, relationshipStatus,
+    lookingFor, bio,
+  } = req.body;
+
+  // Server-side validation — never trust the client alone
+  const name = typeof displayName === 'string' ? displayName.trim() : '';
+  const photoList: string[] = Array.isArray(photos) ? photos.filter(Boolean) : [];
+
+  if (!name) {
+    return res.status(400).json({ error: 'A display name is required to complete registration.' });
+  }
+  if (photoList.length === 0) {
+    return res.status(400).json({ error: 'At least one profile photo is required to complete registration.' });
+  }
+  if (age !== undefined && (isNaN(Number(age)) || Number(age) < 18)) {
+    return res.status(400).json({ error: 'Must be 18 or older.' });
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+
+    const result = await client.query(
+      `UPDATE users SET
+        display_name      = $1,
+        photos            = $2,
+        age               = COALESCE($3, age),
+        city              = COALESCE($4, city),
+        relationship_status = COALESCE($5, relationship_status),
+        looking_for       = COALESCE($6, looking_for),
+        bio               = COALESCE($7, bio),
+        registration_complete = TRUE
+       WHERE id = $8
+       RETURNING *`,
+      [
+        name,
+        photoList,
+        age ? Number(age) : null,
+        city?.trim() || null,
+        relationshipStatus || null,
+        lookingFor ?? null,
+        bio?.trim() || null,
+        req.user!.id,
+      ]
+    );
+
+    await client.query('COMMIT');
+    res.json(formatUser(result.rows[0], false));
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('completeRegistration error:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    client.release();
   }
 }
