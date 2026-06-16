@@ -57,6 +57,18 @@ async function migrate() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS language_preference TEXT NOT NULL DEFAULT 'en'`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_complete BOOLEAN NOT NULL DEFAULT FALSE`);
 
+    // Backfill: any user who already has a display_name AND at least one
+    // photo was registered before this column existed — mark them complete
+    // so they reappear in the feed immediately after this migration runs.
+    await client.query(`
+      UPDATE users
+      SET registration_complete = TRUE
+      WHERE registration_complete = FALSE
+        AND display_name IS NOT NULL
+        AND display_name <> ''
+        AND array_length(photos, 1) >= 1
+    `);
+
     // Rename super_admin → admin for existing rows
     await client.query(`UPDATE users SET admin_role = 'admin' WHERE admin_role = 'super_admin'`);
 
