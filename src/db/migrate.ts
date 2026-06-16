@@ -72,6 +72,21 @@ async function migrate() {
     // Rename super_admin → admin for existing rows
     await client.query(`UPDATE users SET admin_role = 'admin' WHERE admin_role = 'super_admin'`);
 
+    // Fix http:// photo URLs -> https:// in users.photos array.
+    // Photos uploaded before the Railway proxy fix were stored with http:// URLs.
+    // Android WebView blocks http:// images on https:// pages (mixed content).
+    // iOS WebView is lenient and shows them anyway — that's why iOS works but Android doesn't.
+    // This rewrites every http:// element in every user's photos array to https://.
+    await client.query(`
+      UPDATE users
+      SET photos = ARRAY(
+        SELECT regexp_replace(unnest(photos), '^http://', 'https://')
+      )
+      WHERE EXISTS (
+        SELECT 1 FROM unnest(photos) AS p WHERE p LIKE 'http://%'
+      )
+    `);
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS verification_requests (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
