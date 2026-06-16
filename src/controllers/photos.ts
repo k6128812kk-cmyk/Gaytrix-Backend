@@ -49,8 +49,12 @@ export async function uploadPhoto(req: AuthenticatedRequest, res: Response) {
       [photoId, req.user!.id, dataUrl]
     );
 
-    const host = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
-    res.json({ url: `${host}/v1/photos/${photoId}` });
+    // Always build an https:// URL. Railway sits behind a TLS-terminating proxy
+    // so req.protocol is 'http' unless trust proxy is set — and even then,
+    // hardcoding the env var is more reliable. Android blocks http:// images
+    // loaded from an https:// Mini App (mixed content); iOS is lenient.
+    const backendUrl = (process.env.BACKEND_URL || `https://${req.get('host')}`).replace(/\/+$/, '');
+    res.json({ url: `${backendUrl}/v1/photos/${photoId}` });
   } catch (err) {
     console.error('uploadPhoto error:', err);
     res.status(500).json({ error: 'Upload failed' });

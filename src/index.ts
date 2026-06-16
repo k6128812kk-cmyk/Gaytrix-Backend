@@ -24,6 +24,11 @@ const PORT = parseInt(process.env.PORT || '3000');
 const FRONTEND_URL = process.env.FRONTEND_URL || '*';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
+// Trust Railway's reverse proxy so req.protocol returns 'https' instead of 'http'.
+// Without this, photo URLs built from req.protocol + req.get('host') are http://
+// which Android WebView blocks as mixed content (iOS is lenient, Android is not).
+app.set('trust proxy', 1);
+
 // ------------------------------------------------------------------
 // Security middleware
 // ------------------------------------------------------------------
@@ -63,7 +68,18 @@ const uploadsDir = path.join(process.cwd(), 'uploads');
 ['photos', 'selfies', 'stories', 'groups'].forEach(dir => {
   fs.mkdirSync(path.join(uploadsDir, dir), { recursive: true });
 });
-app.use('/uploads', express.static(uploadsDir));
+// Serve uploads with explicit CORS headers so Android WebView can load
+// story and group photos cross-origin. express.static alone does not apply
+// the cors() middleware, so we set the headers manually here.
+app.use('/uploads', (req, res, next) => {
+  res.set({
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Cross-Origin-Resource-Policy': 'cross-origin',
+  });
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+}, express.static(uploadsDir));
 
 // ------------------------------------------------------------------
 // Explicit OPTIONS handler for /v1/photos/* — Android WebView sends

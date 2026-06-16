@@ -239,8 +239,8 @@ export async function sendPhotoMessage(req: AuthenticatedRequest, res: Response)
       [photoId, req.user!.id, dataUrl]
     );
 
-    const host = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
-    const mediaUrl = `${host}/v1/photos/${photoId}`;
+    const backendUrl = (process.env.BACKEND_URL || `https://${req.get('host')}`).replace(/\/+$/, '');
+    const mediaUrl = `${backendUrl}/v1/photos/${photoId}`;
 
     const result = await db.query(
       `INSERT INTO messages (conversation_id, sender_id, content_type, media_url)
