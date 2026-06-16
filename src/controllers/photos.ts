@@ -5,10 +5,33 @@ import { v4 as uuid } from 'uuid';
 
 // ==========================================================================
 // Photo controller — stores photos as base64 DATA URLs in PostgreSQL.
-// This avoids Railway's ephemeral filesystem entirely.
-// Photos are served back as data: URIs — no separate file server needed.
-// Max photo size: 5MB per photo (base64 ~6.67MB stored)
+// Serves them back as binary image responses with explicit CORS headers so
+// that Android WebView (Telegram) can load them correctly.
+// iOS Safari is lenient with CORS/null-origin; Android Chrome is strict.
 // ==========================================================================
+
+/** Shared CORS + cache headers applied to every photo response. */
+function setPhotoHeaders(res: Response, mimeType: string, contentLength: number) {
+  res.set({
+    // Explicit CORS — Android WebView may send Origin: null from the mini-app
+    // context; the global cors() middleware may not match that, so we set it
+    // explicitly here to guarantee the header is always present.
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Cross-Origin-Resource-Policy': 'cross-origin',
+
+    // Content
+    'Content-Type': mimeType,
+    'Content-Length': String(contentLength),
+
+    // Android Chrome requires Accept-Ranges for progressive image loading
+    'Accept-Ranges': 'bytes',
+
+    // Long-lived cache (UUID filenames are immutable)
+    'Cache-Control': 'public, max-age=31536000, immutable',
+  });
+}
 
 export async function uploadPhoto(req: AuthenticatedRequest, res: Response) {
   try {
@@ -20,14 +43,12 @@ export async function uploadPhoto(req: AuthenticatedRequest, res: Response) {
 
     const photoId = uuid();
 
-    // Store in DB
     await db.query(
       `INSERT INTO photos (id, owner_id, data_url, created_at)
        VALUES ($1, $2, $3, NOW())`,
       [photoId, req.user!.id, dataUrl]
     );
 
-    // Return a permanent URL that the frontend can use to retrieve this photo
     const host = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
     res.json({ url: `${host}/v1/photos/${photoId}` });
   } catch (err) {
@@ -37,6 +58,16 @@ export async function uploadPhoto(req: AuthenticatedRequest, res: Response) {
 }
 
 export async function servePhoto(req: Request, res: Response) {
+  // Handle OPTIONS preflight from Android WebView
+  if (req.method === 'OPTIONS') {
+    res.set({
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    });
+    return res.sendStatus(204);
+  }
+
   try {
     const result = await db.query(
       'SELECT data_url FROM photos WHERE id = $1',
@@ -46,18 +77,20 @@ export async function servePhoto(req: Request, res: Response) {
     if (!result.rows[0]) return res.status(404).json({ error: 'Photo not found' });
 
     const dataUrl: string = result.rows[0].data_url;
-    // Parse "data:image/jpeg;base64,<data>"
-    const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+
+    // Use /s (dotAll) flag so `.` matches newlines, and trim any surrounding
+    // whitespace that PostgreSQL TEXT columns can introduce.
+    const match = dataUrl.trim().match(/^data:([^;]+);base64,(.+)$/s);
     if (!match) return res.status(500).json({ error: 'Invalid photo data' });
 
-    const [, mimeType, base64Data] = match;
-    const buffer = Buffer.from(base64Data, 'base64');
+    const mimeType = match[1].trim();
+    // Strip all whitespace (spaces, newlines, tabs) from base64 before decoding —
+    // RFC 2045 line-wrapped base64 has \n every 76 chars; Node handles this but
+    // Content-Length must match the decoded byte count exactly.
+    const cleanBase64 = match[2].replace(/\s/g, '');
+    const buffer = Buffer.from(cleanBase64, 'base64');
 
-    res.set({
-      'Content-Type': mimeType,
-      'Cache-Control': 'public, max-age=31536000, immutable',
-      'Content-Length': buffer.length.toString(),
-    });
+    setPhotoHeaders(res, mimeType, buffer.length);
     res.send(buffer);
   } catch (err) {
     console.error('servePhoto error:', err);

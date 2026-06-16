@@ -33,7 +33,7 @@ app.use(helmet({
 
 app.use(cors({
   origin: FRONTEND_URL === '*' ? '*' : [FRONTEND_URL, /\.netlify\.app$/, /localhost:\d+$/],
-  methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'X-Telegram-Init-Data'],
 }));
 
@@ -64,6 +64,20 @@ const uploadsDir = path.join(process.cwd(), 'uploads');
   fs.mkdirSync(path.join(uploadsDir, dir), { recursive: true });
 });
 app.use('/uploads', express.static(uploadsDir));
+
+// ------------------------------------------------------------------
+// Explicit OPTIONS handler for /v1/photos/* — Android WebView sends
+// a CORS preflight before loading cross-origin images.
+// ------------------------------------------------------------------
+app.options('/v1/photos/:photoId', (req, res) => {
+  res.set({
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '86400',
+  });
+  res.sendStatus(204);
+});
 
 // ------------------------------------------------------------------
 // API routes
