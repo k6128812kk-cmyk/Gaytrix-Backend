@@ -44,9 +44,9 @@ const WELCOME_MESSAGES: Record<string, string> = {
 };
 
 const OPEN_APP_BUTTON_LABELS: Record<string, string> = {
-  en: ' Open K5',
-  ru: ' Открыть K5',
-  tr: ' K5\'i Aç',
+  en: ' 👉🏻Open K5👈🏻',
+  ru: ' 👉🏻Открыть K5👈🏻',
+  tr: ' 👉🏻K5\'i Aç👈🏻',
 };
 
 bot.start(async (ctx) => {
