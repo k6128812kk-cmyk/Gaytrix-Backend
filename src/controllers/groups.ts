@@ -373,9 +373,9 @@ export async function sendGroupMessage(req: AuthenticatedRequest, res: Response)
       if (membersRes.rows.length > 0) {
         const { sendNotification } = await import('../bot/bot');
         const groupName = gr?.name || 'a group';
-        const senderName = userRes.rows[0].display_name || 'Someone';
         for (const member of membersRes.rows) {
-          sendNotification(member.telegram_id, `💬 ${senderName} in ${groupName}: ${text?.trim()?.slice(0, 60) || '📷 Photo'}`).catch(() => {});
+          // Privacy: do NOT reveal the sender's name or message content in the notification.
+          sendNotification(member.telegram_id, `💬 New message in ${groupName}`).catch(() => {});
         }
       }
     } catch { /* notifications are non-fatal */ }
@@ -721,6 +721,17 @@ export async function deleteGroupMessage(req: AuthenticatedRequest, res: Respons
        WHERE id = $2`,
       [req.user!.id, messageId]
     );
+
+    // Broadcast deletion to all online members in real-time via WebSocket.
+    // We import the connections map from the WS module to push the event.
+    try {
+      const { broadcastToGroup } = await import('../ws/chat');
+      broadcastToGroup(groupId, JSON.stringify({
+        type: 'group_message_deleted',
+        groupId,
+        messageId,
+      }));
+    } catch { /* WS broadcast is non-fatal */ }
 
     res.json({ ok: true });
   } catch (err) {

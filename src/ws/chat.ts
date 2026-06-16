@@ -15,6 +15,27 @@ const BOT_TOKEN = process.env.BOT_TOKEN!;
 // userId -> Set<WebSocket>
 const connections = new Map<string, Set<WebSocket>>();
 
+/**
+ * Broadcast a raw JSON payload to every online member of a community group.
+ * Called by controllers that need real-time pushes (e.g. admin message deletion).
+ */
+export async function broadcastToGroup(groupId: string, payload: string) {
+  try {
+    const membersRes = await db.query(
+      'SELECT user_id FROM community_group_members WHERE group_id = $1',
+      [groupId]
+    );
+    membersRes.rows.forEach((row: { user_id: string }) => {
+      const sockets = connections.get(row.user_id);
+      sockets?.forEach(sock => {
+        if (sock.readyState === WebSocket.OPEN) sock.send(payload);
+      });
+    });
+  } catch (err) {
+    console.error('broadcastToGroup error:', err);
+  }
+}
+
 function validateInitData(initData: string): number | null {
   try {
     const params = new URLSearchParams(initData);
@@ -121,6 +142,13 @@ export function setupWebSocketServer(server: Server) {
             await db.query(`UPDATE conversations SET is_request = FALSE WHERE id = $1`, [conversationId]);
           }
 
+          // If the sender had previously soft-deleted this conversation, restore it
+          // so it reappears in their chat list now that they are engaging again.
+          await db.query(
+            `DELETE FROM conversation_deletions WHERE conversation_id = $1 AND user_id = $2`,
+            [conversationId, userId]
+          );
+
           const saved = await db.query(
             `INSERT INTO messages (conversation_id, sender_id, content_type, text)
              VALUES ($1, $2, 'text', $3)
@@ -143,6 +171,13 @@ export function setupWebSocketServer(server: Server) {
           const recipientId = conv.rows[0].user_a === userId
             ? conv.rows[0].user_b
             : conv.rows[0].user_a;
+
+          // If the recipient had previously soft-deleted this conversation,
+          // clear that deletion so the conversation reappears for them.
+          await db.query(
+            `DELETE FROM conversation_deletions WHERE conversation_id = $1 AND user_id = $2`,
+            [conversationId, recipientId]
+          );
 
           const recipientSockets = connections.get(recipientId);
           if (recipientSockets && recipientSockets.size > 0) {

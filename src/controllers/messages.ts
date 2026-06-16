@@ -145,6 +145,23 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
       );
     }
 
+    // If the sender had previously soft-deleted this conversation, un-delete it
+    // so it reappears in their chat list now that they are messaging again.
+    await db.query(
+      `DELETE FROM conversation_deletions WHERE conversation_id = $1 AND user_id = $2`,
+      [conversationId, req.user!.id]
+    );
+
+    // Also clear any deletion record the recipient may have set,
+    // so the conversation reappears in their list when they receive this message.
+    const recipientId = conv.rows[0].user_a === req.user!.id
+      ? conv.rows[0].user_b
+      : conv.rows[0].user_a;
+    await db.query(
+      `DELETE FROM conversation_deletions WHERE conversation_id = $1 AND user_id = $2`,
+      [conversationId, recipientId]
+    );
+
     const result = await db.query(
       `INSERT INTO messages (conversation_id, sender_id, content_type, text)
        VALUES ($1, $2, 'text', $3)
