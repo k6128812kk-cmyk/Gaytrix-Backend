@@ -39,6 +39,7 @@ function formatUser(row: Record<string, unknown>, hideOnline = false) {
     genderIdentity: row.gender_identity,
     interestedIn: row.interested_in,
     orientation: row.orientation,
+    languagePreference: row.language_preference,
     privacy: {
       hideExactLocation: row.hide_exact_location,
       invisibleMode: row.invisible_mode,
@@ -64,7 +65,7 @@ export async function updateMe(req: AuthenticatedRequest, res: Response) {
   const {
     displayName, bio, age, heightCm, weightKg, country, city, nationality,
     relationshipStatus, lookingFor, languages, interests, occupation, photos,
-    privacy, genderIdentity, interestedIn, orientation,
+    privacy, genderIdentity, interestedIn, orientation, languagePreference,
   } = req.body;
 
   if (age !== undefined && (isNaN(age) || age < 18)) {
@@ -94,8 +95,9 @@ export async function updateMe(req: AuthenticatedRequest, res: Response) {
         private_profile = COALESCE($18, private_profile),
         gender_identity = COALESCE($19, gender_identity),
         interested_in = COALESCE($20, interested_in),
-        orientation = COALESCE($21, orientation)
-      WHERE id = $22
+        orientation = COALESCE($21, orientation),
+        language_preference = COALESCE($22, language_preference)
+      WHERE id = $23
       RETURNING *`,
       [
         displayName || null,
@@ -119,6 +121,7 @@ export async function updateMe(req: AuthenticatedRequest, res: Response) {
         genderIdentity || null,
         interestedIn || null,
         orientation || null,
+        languagePreference || null,
         req.user!.id,
       ]
     );

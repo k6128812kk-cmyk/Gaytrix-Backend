@@ -1,3 +1,4 @@
+import { n } from '../i18n/notifications';
 import { Response } from 'express';
 import { db } from '../db/pool';
 import { AuthenticatedRequest } from '../middleware/auth';
@@ -375,7 +376,9 @@ export async function sendGroupMessage(req: AuthenticatedRequest, res: Response)
         const groupName = gr?.name || 'a group';
         for (const member of membersRes.rows) {
           // Privacy: do NOT reveal the sender's name or message content in the notification.
-          sendNotification(member.telegram_id, `💬 New message in ${groupName}`).catch(() => {});
+          const langRes = await db.query('SELECT language_preference FROM users WHERE telegram_id = $1', [member.telegram_id]);
+          const lang = langRes.rows[0]?.language_preference ?? 'en';
+          sendNotification(member.telegram_id, n(lang, 'newGroupMessage', { groupName })).catch(() => {});
         }
       }
     } catch { /* notifications are non-fatal */ }

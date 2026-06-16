@@ -1,3 +1,4 @@
+import { n } from '../i18n/notifications';
 import { Response } from 'express';
 import { db } from '../db/pool';
 import { AuthenticatedRequest } from '../middleware/auth';
@@ -261,9 +262,11 @@ export async function replyToStory(req: AuthenticatedRequest, res: Response) {
         const { sendNotification } = await import('../bot/bot');
         const senderRes = await db.query('SELECT display_name FROM users WHERE id = $1', [req.user!.id]);
         const senderName = senderRes.rows[0]?.display_name || 'Someone';
+        const langRes = await db.query('SELECT language_preference FROM users WHERE id = $1', [ownerId]);
+        const lang = langRes.rows[0]?.language_preference ?? 'en';
         await sendNotification(
           notifyRes.rows[0].telegram_id,
-          `💬 ${senderName} replied to your story on K5`
+          n(lang, 'storyReply', { senderName })
         );
       }
     } catch { /* notification failure is non-fatal */ }

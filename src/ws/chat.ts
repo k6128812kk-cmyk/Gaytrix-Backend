@@ -1,3 +1,4 @@
+import { n } from '../i18n/notifications';
 import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 import { Server } from 'http';
@@ -201,9 +202,11 @@ export function setupWebSocketServer(server: Server) {
               const unreadBefore = parseInt(recipientData.rows[0]?.unread_before ?? '1');
               if (recipientData.rows[0] && unreadBefore === 0) {
                 const { sendNotification } = await import('../bot/bot');
+                const recipientLang = await db.query('SELECT language_preference FROM users WHERE id = $1', [recipientId]);
+                const lang = recipientLang.rows[0]?.language_preference ?? 'en';
                 await sendNotification(
                   recipientData.rows[0].telegram_id,
-                  '💬 You have a new message on K5.'
+                  n(lang, 'newMessage')
                 );
               }
             } catch (notifErr) {

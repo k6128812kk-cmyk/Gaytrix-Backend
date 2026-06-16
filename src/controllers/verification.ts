@@ -1,3 +1,5 @@
+import { n } from '../i18n/notifications';
+import { sendNotification } from '../bot/bot';
 import { Response } from 'express';
 import { db } from '../db/pool';
 import { AuthenticatedRequest } from '../middleware/auth';
@@ -88,6 +90,19 @@ export async function approveVerification(req: AuthenticatedRequest, res: Respon
        VALUES ($1, $2, 'verify', 'Verification approved')`,
       [req.user!.id, vr.rows[0].user_id]
     );
+
+    // Notify user via Telegram bot in their language
+    try {
+      const userInfo = await db.query(
+        'SELECT telegram_id, language_preference FROM users WHERE id = $1', [vr.rows[0].user_id]
+      );
+      if (userInfo.rows[0]) {
+        await sendNotification(
+          userInfo.rows[0].telegram_id,
+          n(userInfo.rows[0].language_preference, 'verificationApproved')
+        );
+      }
+    } catch { /* notification failure is non-fatal */ }
 
     res.json({ ok: true });
   } catch (err) {
