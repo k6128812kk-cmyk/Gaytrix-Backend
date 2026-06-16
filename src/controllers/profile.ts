@@ -268,6 +268,12 @@ export async function completeRegistration(req: AuthenticatedRequest, res: Respo
   if (photoList.length === 0) {
     return res.status(400).json({ error: 'At least one profile photo is required to complete registration.' });
   }
+  // Reject blob: URLs — these are temporary Android/browser object URLs
+  // that only exist locally and mean the upload hasn't finished yet.
+  const invalidPhotos = photoList.filter((u) => !u.startsWith('http'));
+  if (invalidPhotos.length > 0) {
+    return res.status(400).json({ error: 'Photo upload is still in progress. Please wait a moment and try again.' });
+  }
   if (age !== undefined && (isNaN(Number(age)) || Number(age) < 18)) {
     return res.status(400).json({ error: 'Must be 18 or older.' });
   }
